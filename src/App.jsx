@@ -9,34 +9,49 @@ const initialForm = {
   platform: 'naver',
 }
 
-function makeDraft(form) {
-  const platformName = form.platform === 'naver' ? '네이버 블로그' : '티스토리'
-  const title = `${form.region} ${form.industry} 찾는다면? ${form.business}의 ${form.offering}`
-  const body = `${form.business}는 ${form.region}에서 ${form.offering}을(를) 소개하는 ${form.industry} 업체입니다.\n\n${form.industry}를 알아볼 때는 내 상황에 맞는 서비스인지, 어떤 점을 꼼꼼히 살펴보는지가 중요합니다. ${form.business}는 ${form.difference}을(를) 바탕으로 한 분 한 분에게 필요한 선택지를 안내해 드리고 있습니다.\n\n## ${form.business}가 전하는 이야기\n\n처음 방문하시는 분도 편하게 상담하실 수 있도록 서비스 과정과 궁금한 점을 차근차근 설명해 드립니다. ${form.region}에서 ${form.offering}을(를) 찾고 계시다면 현재 필요한 내용부터 함께 확인해 보세요.\n\n## 이런 분께 소개합니다\n\n- ${form.region}에서 ${form.industry} 관련 정보를 찾고 계신 분\n- ${form.offering}의 진행 방식이 궁금하신 분\n- ${form.difference}을(를) 중요하게 생각하시는 분\n\n## 상담 안내\n\n서비스 내용과 일정은 상황에 따라 달라질 수 있습니다. 자세한 사항은 ${form.business}에 문의해 확인해 주세요.\n\n※ 이 글은 입력한 정보를 바탕으로 만든 데모 초안입니다. 게시 전 사실관계와 업체 정보를 확인하고 자연스럽게 다듬어 주세요.\n\n#${form.region.replaceAll(' ', '')} #${form.industry.replaceAll(' ', '')} #${form.offering.replaceAll(' ', '')} #${form.business.replaceAll(' ', '')}`
-
-  return { title, body, platformName }
-}
-
 function App() {
   const [form, setForm] = useState(initialForm)
   const [result, setResult] = useState(null)
   const [copied, setCopied] = useState(false)
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [accessCode, setAccessCode] = useState('')
 
   function updateField(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
   }
 
-  function handleGenerate(event) {
+  async function handleGenerate(event) {
     event.preventDefault()
-    setResult(makeDraft(form))
+    if (loading) return
+    setLoading(true)
+    setError('')
+    setResult(null)
     setCopied(false)
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
+        body: JSON.stringify(form),
+        signal: AbortSignal.timeout(70000),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || '서버 연결을 확인해 주세요.')
+      if (!data?.title || !data?.body) throw new Error('생성 결과가 올바르지 않습니다.')
+      setResult(data)
+    } catch (error) {
+      setError(['TimeoutError', 'AbortError'].includes(error.name) ? '시간이 초과됐습니다. 다시 시도해 주세요.' : error.message)
+    } finally { setLoading(false) }
   }
 
   async function handleCopy() {
     if (!result) return
-    await navigator.clipboard.writeText(`${result.title}\n\n${result.body}`)
-    setCopied(true)
+    try {
+      await navigator.clipboard.writeText(`${result.title}\n\n${result.body}`)
+      setCopied(true)
+    } catch { setError('복사하지 못했습니다. 본문을 직접 선택해 복사해 주세요.') }
   }
 
   return (
@@ -50,7 +65,7 @@ function App() {
           <span className="status-dot" />
           <span>콘텐츠 스튜디오</span>
           <span className="topbar-divider" />
-          <span className="demo-label">DEMO</span>
+          <span className="demo-label">AI</span>
         </div>
       </header>
 
@@ -70,7 +85,7 @@ function App() {
 
       <div className="demo-notice" role="note">
         <span className="notice-icon" aria-hidden="true">i</span>
-        <p><strong>데모 버전</strong> 입력한 정보로 예시 문장을 조합합니다. AI 연결 및 외부 전송은 없으며, 검색 순위나 GEO 인용을 보장하지 않습니다.</p>
+        <p><strong>AI 글 생성</strong> 입력한 업체 정보가 OpenAI로 전송됩니다. 실제 검색·사실 검증 기능은 없으며, 게시 전 검토가 필요합니다. 검색 순위나 AI 인용을 보장하지 않습니다.</p>
       </div>
 
       <div className="workspace">
@@ -83,7 +98,12 @@ function App() {
             <span className="required-note"><i>*</i> 필수 입력</span>
           </div>
 
-          <form onSubmit={handleGenerate}>
+          <form onSubmit={handleGenerate} aria-busy={loading}>
+            {error && <p role="alert" className="error-message">{error}</p>}
+            <label className="field">
+              <span className="field-label">앱 이용 암호 <i>*</i></span>
+              <input type="password" value={accessCode} onChange={event => setAccessCode(event.target.value)} placeholder="서버에 설정한 이용 암호" required autoComplete="off" />
+            </label>
             <div className="field-grid">
               <label className="field">
                 <span className="field-label">업체명 <i>*</i></span>
@@ -125,8 +145,8 @@ function App() {
               </div>
             </fieldset>
 
-            <button className="generate-button" type="submit">
-              <span>블로그 글 생성하기</span>
+            <button className="generate-button" type="submit" disabled={loading}>
+              <span>{loading ? 'AI가 글을 작성하고 있어요…' : 'AI로 블로그 글 생성하기'}</span>
               <span className="button-arrow" aria-hidden="true">↗</span>
             </button>
             <p className="form-footnote"><span aria-hidden="true">✳</span> 생성된 글은 초안입니다. 게시 전 내용을 꼭 확인해 주세요.</p>
@@ -166,7 +186,7 @@ function App() {
               <span className="empty-index">YOUR NEXT POST STARTS HERE</span>
             </div>
           )}
-          <div className="result-bottom-note"><span className="bottom-line" />{result ? '데모 문장 · 게시 전 검토 필요' : '입력 정보는 이 화면에서만 사용됩니다'}</div>
+          <div className="result-bottom-note"><span className="bottom-line" />{result ? 'AI 생성 초안 · 게시 전 검토 필요' : '생성 시 업체 정보가 OpenAI로 전송됩니다'}</div>
         </section>
       </div>
 
