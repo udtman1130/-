@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { photoNumber, photoFilename, buildPhotoDraft, draftText } from './photos'
 
 const initialForm = {
   business: '',
@@ -18,6 +19,47 @@ function App() {
   const [error, setError] = useState('')
   const [accessCode, setAccessCode] = useState('')
 
+  const [photos, setPhotos] = useState([])
+  const [placed, setPlaced] = useState({})
+  const nextPhotoId = useRef(1)
+  const photoUrls = useRef(new Set())
+  useEffect(() => () => photoUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
+
+  function addPhotos(event) {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (files.some(file => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+      setError('JPG·PNG·WebP 사진만 넣어주세요. 사진 한 장은 10MB 이하여야 합니다.')
+      return
+    }
+    if (photos.length + files.length > 10) { setError('사진은 최대 10장까지 넣을 수 있어요.'); return }
+    const additions = files.map(file => {
+      const url = URL.createObjectURL(file)
+      photoUrls.current.add(url)
+      return { id: nextPhotoId.current++, file, url, description: '' }
+    })
+    setPhotos(current => [...current, ...additions])
+    setError('')
+  }
+
+  function movePhoto(index, direction) {
+    setPhotos(current => {
+      const copy = [...current]
+      ;[copy[index], copy[index + direction]] = [copy[index + direction], copy[index]]
+      return copy
+    })
+    setCopied(false)
+  }
+
+  function removePhoto(photo) {
+    URL.revokeObjectURL(photo.url)
+    photoUrls.current.delete(photo.url)
+    setPhotos(current => current.filter(item => item.id !== photo.id))
+    setCopied(false)
+  }
+
+  const blocks = result ? buildPhotoDraft(result.body, photos) : []
+
   function updateField(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
@@ -30,6 +72,7 @@ function App() {
     setError('')
     setResult(null)
     setCopied(false)
+    setPlaced({})
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -49,7 +92,7 @@ function App() {
   async function handleCopy() {
     if (!result) return
     try {
-      await navigator.clipboard.writeText(`${result.title}\n\n${result.body}`)
+      await navigator.clipboard.writeText(`${result.title}\n\n${draftText(blocks)}`)
       setCopied(true)
     } catch { setError('복사하지 못했습니다. 본문을 직접 선택해 복사해 주세요.') }
   }
@@ -145,6 +188,33 @@ function App() {
               </div>
             </fieldset>
 
+            <section className="photo-section" aria-labelledby="photos-heading">
+              <h3 id="photos-heading">사진 번호와 삽입 위치</h3>
+              <p>최대 10장 · JPG/PNG/WebP · 장당 10MB. 번호는 순서를 바꿔도 유지됩니다.</p>
+              <p>사진은 이 브라우저에서만 미리 봅니다. 이번 버전은 AI 사진 분석 없이 문단 사이에 삽입 위치를 제안합니다. 새로고침하면 사진과 입력 내용이 사라집니다.</p>
+              <label className="photo-upload">사진 선택
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} disabled={loading} />
+              </label>
+              <ol className="photo-list">
+                {photos.map((photo, index) => <li key={photo.id} className="photo-card">
+                  <img src={photo.url} alt={`사진 ${photoNumber(photo.id)} 미리보기`} />
+                  <div className="photo-details">
+                    <strong>사진 {photoNumber(photo.id)}</strong>
+                    <label>사진 설명
+                      <input value={photo.description} maxLength={120} placeholder="예: 차량 앞면" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
+                    </label>
+                    <small>{photoFilename(photo)}</small>
+                    <div className="photo-actions">
+                      <button type="button" disabled={loading || index === 0} onClick={() => movePhoto(index, -1)} aria-label={`사진 ${photoNumber(photo.id)} 앞으로`}>앞으로</button>
+                      <button type="button" disabled={loading || index === photos.length - 1} onClick={() => movePhoto(index, 1)} aria-label={`사진 ${photoNumber(photo.id)} 뒤로`}>뒤로</button>
+                      <a href={photo.url} download={photoFilename(photo)}>사진 저장</a>
+                      <button type="button" disabled={loading} onClick={() => removePhoto(photo)}>삭제</button>
+                    </div>
+                  </div>
+                </li>)}
+              </ol>
+            </section>
+
             <button className="generate-button" type="submit" disabled={loading}>
               <span>{loading ? 'AI가 글을 작성하고 있어요…' : 'AI로 블로그 글 생성하기'}</span>
               <span className="button-arrow" aria-hidden="true">↗</span>
@@ -169,11 +239,19 @@ function App() {
                 <h3>{result.title}</h3>
                 <div className="draft-divider" />
                 <p className="draft-label">본문</p>
-                <div className="draft-body">{result.body}</div>
+                <div className="draft-body">{blocks.map((block, index) => block.type === 'text'
+                  ? <div key={index} className="draft-paragraph">{block.text}</div>
+                  : <div key={index} className="photo-placeholder">
+                    <img src={block.photo.url} alt={block.photo.description || `사진 ${photoNumber(block.photo.id)}`} />
+                    <div><strong>[사진 {photoNumber(block.photo.id)} 넣는 곳 — {block.photo.description.trim() || '설명 없음'}]</strong>
+                    <p>{photoFilename(block.photo)}</p>
+                    <label><input type="checkbox" checked={!!placed[block.photo.id]} onChange={event => setPlaced(current => ({ ...current, [block.photo.id]: event.target.checked }))} /> 블로그에 사진 삽입 완료</label></div>
+                  </div>)}</div>
+                {photos.length > 0 && <p className="photo-review" role="note">사진 삽입 확인: {photos.filter(photo => placed[photo.id]).length}/{photos.length}장. 체크는 작업 메모이며 실제 업로드 여부는 확인하지 않습니다. 게시 전 [사진 넣는 곳] 안내와 파일명 문구를 지우세요. 사진 설명은 공개할 문구인지 확인하세요.</p>}
               </div>
               <button className="copy-button" type="button" onClick={handleCopy}>
                 <span className="copy-icon" aria-hidden="true">{copied ? '✓' : '▢'}</span>
-                <span>{copied ? '복사 완료' : '제목과 본문 복사'}</span>
+                <span>{copied ? '복사 완료' : '제목·본문·사진 위치 복사'}</span>
               </button>
             </>
           ) : (

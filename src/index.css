@@ -162,3 +162,22 @@ button { color: inherit; }
 }
 .error-message { color: #9d2020; background: #fff0ef; padding: 12px; border-radius: 8px; }
 .generate-button:disabled { opacity: .65; cursor: wait; }
+
+.photo-section { margin: 28px 0; padding: 20px 0; border-top: 1px solid #ddd; }
+.photo-section p, .photo-review { font-size: 13px; line-height: 1.7; color: #666; }
+.photo-list { list-style: none; padding: 0; }
+.photo-card { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid #ddd; }
+.photo-card img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; }
+.photo-details { min-width: 0; flex: 1; }
+.photo-details label { display: grid; gap: 6px; margin: 8px 0; font-size: 13px; }
+.photo-details input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+.photo-details small { overflow-wrap: anywhere; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 13px; }
+.photo-actions button { padding: 3px 6px; cursor: pointer; }
+.photo-actions button:disabled { opacity: .4; cursor: default; }
+.photo-placeholder { display: flex; align-items: center; gap: 12px; padding: 16px; margin: 20px 0; background: #f1f4ee; border: 1px dashed #889878; border-radius: 8px; white-space: normal; }
+.photo-placeholder img { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; }
+.photo-placeholder p { font-size: 12px; overflow-wrap: anywhere; }
+.photo-placeholder label { font-size: 13px; }
+.draft-paragraph { margin-bottom: 20px; }
+@media (max-width: 480px) { .photo-card img { width: 60px; height: 60px; } .photo-placeholder { flex-direction: column; align-items: flex-start; } }
