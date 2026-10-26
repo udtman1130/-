@@ -27,3 +27,9 @@ test('export escapes script-like content, does not export temporary image URL', 
   assert.ok(!out.text.includes('**'))
   assert.ok(out.text.includes('photo_03.png'))
 })
+
+test('HTML photo caption is a separate escaped paragraph below placement', () => {
+  const out = exportDraft([{ type: 'photo', photo: { id: 2, description: '작업 전 <벽면>', file: { type: 'image/jpeg' } } }])
+  assert.ok(out.html.includes('photo_02.jpg</p><p'))
+  assert.ok(out.html.includes('작업 전 &lt;벽면&gt;</p>'))
+})

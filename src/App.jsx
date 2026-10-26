@@ -222,8 +222,8 @@ function App() {
                   <img src={photo.url} alt={`사진 ${photoNumber(photo.id)} 미리보기`} />
                   <div className="photo-details">
                     <strong>사진 {photoNumber(photo.id)}</strong>
-                    <label>사진 설명
-                      <input value={photo.description} maxLength={120} placeholder="예: 차량 앞면" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
+                    <label>사진 아래에 표시할 설명
+                      <input value={photo.description} maxLength={120} placeholder="예: 작업 전 벽면 상태 — 균열 부위를 확인하는 사진" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
                     </label>
                     <small>{photoFilename(photo)}</small>
                     {(!photo.description.trim() || /^\d+$/.test(photo.description.trim())) && <p className="interview-hint">숫자 대신 무엇을 보여주는 사진인지 적어주세요. 예: 매장 입구, 작업 전 벽면. 이번 버전은 사진 내용을 AI가 분석하지 않습니다.</p>}
@@ -238,6 +238,7 @@ function App() {
               </ol>
             </section>
 
+            <p className="form-footnote">기본 본문 목표: 2,000~2,500자. 사진 설명은 별도이며, 확인된 정보가 부족하면 보완 질문을 안내합니다.</p>
             <button className="generate-button" type="submit" disabled={loading}>
               <span>{loading ? 'AI가 글을 작성하고 있어요…' : 'AI로 블로그 글 생성하기'}</span>
               <span className="button-arrow" aria-hidden="true">↗</span>
@@ -261,7 +262,8 @@ function App() {
                 <p className="draft-label">제목</p>
                 <h3>{cleanText(result.title)}</h3>
                 <div className="draft-divider" />
-                <p className="draft-label">본문</p>
+                <p className="draft-label">본문 · {result.characterCount ?? Array.from(result.body).length}자 / 목표 2,000~2,500자</p>
+                <p className="form-footnote">공백 포함, 제목·사진 설명 제외. 자료가 부족하면 사실을 만들지 않고 보완할 내용을 안내합니다.</p>
                 <div className="draft-body">{blocks.map((block, index) => block.type === 'text'
                   ? <div key={index} className="draft-paragraph">{cleanText(block.text).split('\n').map((line, lineIndex) => (result.sections || []).some(section => cleanText(section.heading) === line)
                     ? <h3 key={lineIndex}>{line}</h3> : <p key={lineIndex}>{line}</p>)}</div>
@@ -269,6 +271,7 @@ function App() {
                     <img src={block.photo.url} alt={block.photo.description || `사진 ${photoNumber(block.photo.id)}`} />
                     <div><strong>[사진 {photoNumber(block.photo.id)} 넣는 곳 — {block.photo.description.trim() || '설명 없음'}]</strong>
                     <p>{photoFilename(block.photo)}</p>
+                    <p style={{ textAlign: 'center', color: '#666', fontSize: '14px', lineHeight: 1.7 }}>{block.photo.description.trim() || '사진 설명을 입력해 주세요.'}</p>
                     <label><input type="checkbox" checked={!!placed[block.photo.id]} onChange={event => setPlaced(current => ({ ...current, [block.photo.id]: event.target.checked }))} /> 블로그에 사진 삽입 완료</label></div>
                   </div>)}</div>
                 {photos.length > 0 && <p className="photo-review" role="note">사진 삽입 확인: {photos.filter(photo => placed[photo.id]).length}/{photos.length}장. 체크는 작업 메모이며 실제 업로드 여부는 확인하지 않습니다. 게시 전 [사진 넣는 곳] 안내와 파일명 문구를 지우세요. 사진 설명은 공개할 문구인지 확인하세요.</p>}

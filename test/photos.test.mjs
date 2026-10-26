@@ -22,3 +22,9 @@ test('export includes only active photo references and sanitizes filenames', () 
   assert.ok(!text.includes('사진 01'))
   assert.ok(!photoFilename(photo(5, '../../앞면')).includes('/'))
 })
+
+// Public captions survive export independently of removable placement instructions.
+test('photo caption stays separate from placement and filename', () => {
+  const text = draftText(buildPhotoDraft('본문', [photo(2, '작업 전 벽면 상태')]))
+  assert.ok(text.includes('[사진 02 넣는 곳]\n사진 파일: photo_02.jpg\n사진 설명: 작업 전 벽면 상태'))
+})
