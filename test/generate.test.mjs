@@ -31,7 +31,7 @@ test('server sends credentials upstream and parses structured response', async t
     assert.equal(input.store, false)
     assert.equal(input.text.format.strict, true)
     assert.equal(input.max_output_tokens, 6500)
-    assert.deepEqual(input.text.format.schema.properties.sections.items.properties.evidenceIds.items.enum, ['business', 'industry', 'region', 'offering'])
+    assert.deepEqual(input.text.format.schema.properties.sections.items.properties.evidenceIds.items.enum, ['business', 'industry', 'region', 'offering', 'difference'])
     assert.ok(JSON.parse(input.input).writingGuide.targetCharacters.includes('2000~2500'))
     assert.equal(JSON.parse(input.input).business, form.business)
     return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '제목', sections: [{ heading: '안내', text: '본문', evidenceIds: ['business'] }], reviewNotes: [] }) }] }] })
@@ -74,4 +74,18 @@ test('fabricated evidence ID causes an explicit failure', async t => {
 test('malformed interview is rejected before provider call', async t => {
   const r = await request(t, { fetchImpl: () => assert.fail('unexpected request') }, { ...form, interview: [{ id: 'fake', text: '내용', confirmed: true }] })
   assert.equal(r.status, 400)
+})
+
+ test('user supplied claims remain available without external verification', async t => {
+  const r = await request(t, { fetchImpl: async (url, options) => {
+    const payload = JSON.parse(options.body)
+    const data = JSON.parse(payload.input)
+    assert.ok(data.evidence.some(item => item.id === 'difference' && item.text === '매니저 100명'))
+    assert.ok(payload.instructions.includes('외부 근거를 찾지 못했다는 이유로 삭제하지 말고'))
+    assert.ok(payload.instructions.includes('100명 상주'))
+    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '안내', sections: [{ heading: '', text: '업체 안내', evidenceIds: ['business'] }], reviewNotes: [] }) }] }] })
+  } }, { ...form, difference: '매니저 100명' })
+  assert.equal(r.status, 200)
+  assert.ok(r.body.reviewNotes.some(note => note.includes('매니저 100명') && note.includes('반영 점검')))
+  assert.ok(r.body.coverage.some(item => item.id === 'difference'))
 })

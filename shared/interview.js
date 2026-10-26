@@ -31,6 +31,7 @@ export function normalizeInterview(value) {
 }
 export function evidenceFor(form, interview) {
   const facts = ['business', 'industry', 'region', 'offering'].map(id => ({ id, text: form[id], origin: '업체 제공·외부 검증 안 됨' }))
+  if (typeof form.difference === 'string' && form.difference.trim()) facts.push({ id: 'difference', text: form.difference.trim().slice(0, 2000), origin: '사용자 제공·외부 검증 안 됨' })
   return facts.concat(interview.filter(a => a.confirmed && a.text).map(a => ({ id: a.id, text: a.text, origin: '사용자 확인·외부 검증 안 됨' })))
 }
 export function coverageFor(sections, evidence) {
