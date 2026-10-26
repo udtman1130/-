@@ -31,9 +31,16 @@ test('server sends credentials upstream and parses structured response', async t
     assert.equal(input.store, false)
     assert.equal(input.text.format.strict, true)
     assert.equal(JSON.parse(input.input).business, form.business)
-    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '제목', body: '본문' }) }] }] })
+    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '제목', sections: [{ heading: '안내', text: '본문', evidenceIds: ['business'] }], reviewNotes: [] }) }] }] })
   } })
-  assert.deepEqual(r, { status: 200, body: { title: '제목', body: '본문', platformName: '네이버 블로그' } })
+  assert.equal(r.status, 200)
+  assert.equal(r.body.body, '안내\n본문')
+  assert.equal(r.body.coverage.find(item => item.id === 'business').sections[0], 1)
+  assert.ok(r.body.reviewNotes.some(note => note.includes('상담 경로')))
+  assert.equal(r.status, 200)
+  assert.equal(r.body.body, '안내\n본문')
+  assert.deepEqual(r.body.coverage[0].sections, [1])
+  assert.ok(r.body.reviewNotes.some(note => note.includes('상담 경로')))
   assert.equal(JSON.stringify(r).includes('server-only'), false)
 })
 test('upstream quota error is actionable', async t => {
@@ -44,4 +51,22 @@ test('incomplete and malformed AI output never treated as success', async t => {
   for (const data of [{ status: 'incomplete' }, { status: 'completed', output: [] }]) {
     assert.equal((await request(t, { fetchImpl: async () => Response.json(data) })).status, 502)
   }
+})
+
+test('unconfirmed interview text is never sent upstream', async t => {
+  const r = await request(t, { fetchImpl: async (url, options) => {
+    const data = JSON.parse(JSON.parse(options.body).input)
+    assert.ok(!JSON.stringify(data).includes('미확인 비밀 답변'))
+    assert.ok(data.evidence.some(item => item.id === 'answer' && item.text === '방문 후 견적 안내'))
+    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '안내', sections: [{ heading: '', text: '방문 후 견적 안내', evidenceIds: ['answer'] }], reviewNotes: [] }) }] }] })
+  } }, { ...form, interview: [{ id: 'answer', text: '방문 후 견적 안내', confirmed: true }, { id: 'case', text: '미확인 비밀 답변', confirmed: false }] })
+  assert.equal(r.status, 200)
+})
+test('fabricated evidence ID causes an explicit failure', async t => {
+  const r = await request(t, { fetchImpl: async () => Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '안내', sections: [{ heading: '', text: '주장', evidenceIds: ['invented'] }], reviewNotes: [] }) }] }] }) })
+  assert.equal(r.status, 502)
+})
+test('malformed interview is rejected before provider call', async t => {
+  const r = await request(t, { fetchImpl: () => assert.fail('unexpected request') }, { ...form, interview: [{ id: 'fake', text: '내용', confirmed: true }] })
+  assert.equal(r.status, 400)
 })

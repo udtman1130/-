@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { photoNumber, photoFilename, buildPhotoDraft, draftText } from './photos'
+import Interview from './Interview.jsx'
+import { industryOptions } from '../shared/interview.js'
+import { exportDraft, cleanText } from './export.js'
+import { photoNumber, photoFilename, buildPhotoDraft } from './photos'
 
 const initialForm = {
   business: '',
@@ -11,6 +14,8 @@ const initialForm = {
 }
 
 function App() {
+  const [answers, setAnswers] = useState({})
+  const [industryChoice, setIndustryChoice] = useState('기타·직접 입력')
   const [form, setForm] = useState(initialForm)
   const [result, setResult] = useState(null)
   const [copied, setCopied] = useState(false)
@@ -63,6 +68,8 @@ function App() {
   function updateField(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
+    setResult(null)
+    setCopied(false)
   }
 
   async function handleGenerate(event) {
@@ -77,7 +84,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -89,12 +96,18 @@ function App() {
     } finally { setLoading(false) }
   }
 
-  async function handleCopy() {
+  async function handleCopy(mode = 'text') {
     if (!result) return
     try {
-      await navigator.clipboard.writeText(`${result.title}\n\n${draftText(blocks)}`)
+      const output = exportDraft(blocks, (result.sections || []).map(section => section.heading))
+      if (mode === 'title') await navigator.clipboard.writeText(cleanText(result.title))
+      else if (mode === 'html') await navigator.clipboard.writeText(output.html)
+      else if (mode === 'rich') {
+        if (!window.ClipboardItem || !navigator.clipboard?.write) throw new Error('이 브라우저에서는 서식 복사를 지원하지 않습니다. 일반 본문 복사를 이용해 주세요.')
+        await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([output.html], { type: 'text/html' }), 'text/plain': new Blob([output.text], { type: 'text/plain' }) })])
+      } else await navigator.clipboard.writeText(output.text)
       setCopied(true)
-    } catch { setError('복사하지 못했습니다. 본문을 직접 선택해 복사해 주세요.') }
+    } catch (error) { setError(error.message || '복사하지 못했습니다. 본문을 직접 선택해 복사해 주세요.') }
   }
 
   return (
@@ -154,7 +167,14 @@ function App() {
               </label>
               <label className="field">
                 <span className="field-label">업종 <i>*</i></span>
-                <input name="industry" value={form.industry} onChange={updateField} placeholder="예: 동네 빵집" required />
+                <select aria-label="업종 선택" value={industryChoice} onChange={event => {
+                  const value = event.target.value
+                  setIndustryChoice(value)
+                  setForm(current => ({ ...current, industry: value === '기타·직접 입력' ? '' : value }))
+                  setAnswers({})
+                  setResult(null)
+                }}>{industryOptions.map(option => <option key={option}>{option}</option>)}</select>
+                {industryChoice === '기타·직접 입력' && <input name="industry" value={form.industry} onChange={updateField} placeholder="실제 업종을 자유롭게 입력" required />}
               </label>
               <label className="field">
                 <span className="field-label">영업 지역 <i>*</i></span>
@@ -165,11 +185,13 @@ function App() {
                 <input name="offering" value={form.offering} onChange={updateField} placeholder="예: 매일 굽는 사워도우" required />
               </label>
               <label className="field field-wide">
-                <span className="field-label">업체만의 차별점 <i>*</i></span>
-                <textarea name="difference" value={form.difference} onChange={updateField} placeholder="예: 국내산 밀을 사용하고 매일 아침 직접 반죽해요" rows="3" required />
+                <span className="field-label">추가 소개 문구 (선택·미확인 자료)</span>
+                <textarea name="difference" value={form.difference} onChange={updateField} placeholder="예: 국내산 밀을 사용하고 매일 아침 직접 반죽해요" rows="3" />
               </label>
             </div>
 
+            <Interview industry={form.industry} answers={answers} disabled={loading} onChange={value => { setAnswers(value); setResult(null); setCopied(false) }} />
+            <p className="form-footnote">업종을 선택 목록에서 바꾸면 이전 업종의 답변을 지웁니다. 입력한 답변·업체 정보는 생성 시 OpenAI로 전송됩니다. 새로고침 전에 필요한 내용은 보관해 주세요.</p>
             <fieldset className="platform-field">
               <legend className="field-label">블로그 플랫폼 <i>*</i></legend>
               <div className="platform-options">
@@ -204,6 +226,7 @@ function App() {
                       <input value={photo.description} maxLength={120} placeholder="예: 차량 앞면" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
                     </label>
                     <small>{photoFilename(photo)}</small>
+                    {(!photo.description.trim() || /^\d+$/.test(photo.description.trim())) && <p className="interview-hint">숫자 대신 무엇을 보여주는 사진인지 적어주세요. 예: 매장 입구, 작업 전 벽면. 이번 버전은 사진 내용을 AI가 분석하지 않습니다.</p>}
                     <div className="photo-actions">
                       <button type="button" disabled={loading || index === 0} onClick={() => movePhoto(index, -1)} aria-label={`사진 ${photoNumber(photo.id)} 앞으로`}>앞으로</button>
                       <button type="button" disabled={loading || index === photos.length - 1} onClick={() => movePhoto(index, 1)} aria-label={`사진 ${photoNumber(photo.id)} 뒤로`}>뒤로</button>
@@ -236,11 +259,12 @@ function App() {
             <>
               <div className="draft-content">
                 <p className="draft-label">제목</p>
-                <h3>{result.title}</h3>
+                <h3>{cleanText(result.title)}</h3>
                 <div className="draft-divider" />
                 <p className="draft-label">본문</p>
                 <div className="draft-body">{blocks.map((block, index) => block.type === 'text'
-                  ? <div key={index} className="draft-paragraph">{block.text}</div>
+                  ? <div key={index} className="draft-paragraph">{cleanText(block.text).split('\n').map((line, lineIndex) => (result.sections || []).some(section => cleanText(section.heading) === line)
+                    ? <h3 key={lineIndex}>{line}</h3> : <p key={lineIndex}>{line}</p>)}</div>
                   : <div key={index} className="photo-placeholder">
                     <img src={block.photo.url} alt={block.photo.description || `사진 ${photoNumber(block.photo.id)}`} />
                     <div><strong>[사진 {photoNumber(block.photo.id)} 넣는 곳 — {block.photo.description.trim() || '설명 없음'}]</strong>
@@ -249,10 +273,20 @@ function App() {
                   </div>)}</div>
                 {photos.length > 0 && <p className="photo-review" role="note">사진 삽입 확인: {photos.filter(photo => placed[photo.id]).length}/{photos.length}장. 체크는 작업 메모이며 실제 업로드 여부는 확인하지 않습니다. 게시 전 [사진 넣는 곳] 안내와 파일명 문구를 지우세요. 사진 설명은 공개할 문구인지 확인하세요.</p>}
               </div>
-              <button className="copy-button" type="button" onClick={handleCopy}>
-                <span className="copy-icon" aria-hidden="true">{copied ? '✓' : '▢'}</span>
-                <span>{copied ? '복사 완료' : '제목·본문·사진 위치 복사'}</span>
-              </button>
+              <section className="review-panel">
+                <h3>게시 전 내용 확인</h3>
+                <p>AI가 연결한 근거이며 독립적인 사실 검증이나 SEO·GEO 합격 판정이 아닙니다.</p>
+                <ul>{(result.reviewNotes || []).map((note, i) => <li key={i}>{note}</li>)}</ul>
+                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내' })[item.id] || item.id}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
+                <p>사진 안내·파일명 문구를 지우고 사진을 직접 첨부하세요. 가격·조건·사례는 게시 전 원자료와 대조해 주세요.</p>
+              </section>
+              <div className="export-actions">
+                <button type="button" onClick={() => handleCopy('title')}>제목 복사</button>
+                <button type="button" onClick={() => handleCopy('text')}>일반 본문 복사</button>
+                {result.platformName === '네이버 블로그' ? <button type="button" onClick={() => handleCopy('rich')}>네이버 서식 포함 복사</button> : <button type="button" onClick={() => handleCopy('html')}>티스토리 HTML 복사</button>}
+              </div>
+              {copied && <p role="status">복사 완료 — 제목은 제목 칸에, 본문은 본문 칸에 붙여넣으세요.</p>}
+              <p className="form-footnote">서식 복사는 실제 편집기·스킨에 따라 달라질 수 있습니다. 티스토리 HTML은 HTML 모드에 붙여넣으세요. 복사 내용에는 사진 삽입 안내가 포함되며 실제 이미지는 포함되지 않습니다.</p>
             </>
           ) : (
             <div className="empty-state">

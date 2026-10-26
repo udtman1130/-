@@ -6,7 +6,7 @@ test('reordering preserves photo identity and export filename', () => {
   const photos = [photo(3), photo(1)]
   const blocks = buildPhotoDraft('첫 문단\n\n둘째 문단', photos)
   assert.deepEqual(blocks.filter(b => b.type === 'photo').map(b => b.photo.id), [3, 1])
-  assert.equal(photoFilename(photos[0]), '사진03_차량_앞면.jpg')
+  assert.equal(photoFilename(photos[0]), 'photo_03.jpg')
 })
 test('every selected photo appears exactly once even with fewer paragraphs', () => {
   const photos = [photo(1), photo(4), photo(9)]

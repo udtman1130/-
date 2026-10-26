@@ -1,8 +1,7 @@
 export const photoNumber = id => String(id).padStart(2, '0')
 export function photoFilename(photo) {
-  const stem = (photo.description.trim() || '사진').normalize('NFC').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40)
   const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[photo.file.type]
-  return `사진${photoNumber(photo.id)}_${stem}.${extension}`
+  return `photo_${photoNumber(photo.id)}.${extension}`
 }
 export function buildPhotoDraft(body, photos) {
   const paragraphs = body.split(/\n\s*\n/).filter(p => p.trim())

@@ -181,3 +181,13 @@ button { color: inherit; }
 .photo-placeholder label { font-size: 13px; }
 .draft-paragraph { margin-bottom: 20px; }
 @media (max-width: 480px) { .photo-card img { width: 60px; height: 60px; } .photo-placeholder { flex-direction: column; align-items: flex-start; } }
+
+.interview, .review-panel { background: #f6f5f0; border: 1px solid #ddd9ce; padding: 20px; border-radius: 10px; margin: 24px 0; }
+.interview p, .review-panel p, .review-panel li { font-size: 13px; line-height: 1.8; overflow-wrap:anywhere; }
+.interview fieldset { border: 0; padding: 0; min-width:0; }
+.interview legend { font-weight: 700; line-height:1.6; margin-bottom:12px; }
+.interview textarea { width:100%; padding:12px; border:1px solid #aaa; border-radius:6px; resize:vertical; }
+.answer-options, .export-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.answer-options button, .export-actions button { padding:10px 12px; border:1px solid #aaa; border-radius:6px; background:white; cursor:pointer; }
+.answer-options button:disabled { opacity:.4; }
+.field select { width:100%; padding:12px; border:1px solid #ccc; border-radius:6px; background:white; }
