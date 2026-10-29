@@ -15,6 +15,7 @@ const initialForm = {
 
 function App() {
   const [answers, setAnswers] = useState({})
+  const [resetVersion, setResetVersion] = useState(0)
   const [industryChoice, setIndustryChoice] = useState('기타·직접 입력')
   const [form, setForm] = useState(initialForm)
   const [result, setResult] = useState(null)
@@ -29,6 +30,23 @@ function App() {
   const nextPhotoId = useRef(1)
   const photoUrls = useRef(new Set())
   useEffect(() => () => photoUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
+
+  function resetInputs() {
+    if (loading || !window.confirm('입력한 업체 정보, 질문 답변, 사진, 생성된 글을 모두 초기화할까요? 필요한 글은 먼저 복사해 주세요.')) return
+    photoUrls.current.forEach(url => URL.revokeObjectURL(url))
+    photoUrls.current.clear()
+    nextPhotoId.current = 1
+    setForm({ ...initialForm })
+    setIndustryChoice('기타·직접 입력')
+    setAnswers({})
+    setPhotos([])
+    setPlaced({})
+    setResult(null)
+    setCopied(false)
+    setError('')
+    setAccessCode('')
+    setResetVersion(value => value + 1)
+  }
 
   function addPhotos(event) {
     const files = Array.from(event.target.files || [])
@@ -191,7 +209,7 @@ function App() {
               </label>
             </div>
 
-            <Interview key={profileFor(form.industry)?.name || 'other'} industry={form.industry} answers={answers} disabled={loading} onChange={value => { setAnswers(value); setResult(null); setCopied(false) }} />
+            <Interview key={`${resetVersion}-${profileFor(form.industry)?.name || 'other'}`} industry={form.industry} answers={answers} disabled={loading} onChange={value => { setAnswers(value); setResult(null); setCopied(false) }} />
             <p className="form-footnote">업종을 선택 목록에서 바꾸면 이전 업종의 답변을 지웁니다. 입력한 답변·업체 정보는 생성 시 OpenAI로 전송됩니다. 새로고침 전에 필요한 내용은 보관해 주세요.</p>
             <fieldset className="platform-field">
               <legend className="field-label">블로그 플랫폼 <i>*</i></legend>
@@ -244,6 +262,7 @@ function App() {
               <span>{loading ? 'AI가 글을 작성하고 있어요…' : 'AI로 블로그 글 생성하기'}</span>
               <span className="button-arrow" aria-hidden="true">↗</span>
             </button>
+            <button className="reset-button" type="button" disabled={loading} onClick={resetInputs}>입력 내용 초기화</button>
             <p className="form-footnote"><span aria-hidden="true">✳</span> 생성된 글은 초안입니다. 게시 전 내용을 꼭 확인해 주세요.</p>
           </form>
         </section>
