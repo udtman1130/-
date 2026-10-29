@@ -89,3 +89,26 @@ test('malformed interview is rejected before provider call', async t => {
   assert.ok(r.body.reviewNotes.some(note => note.includes('매니저 100명') && note.includes('반영 점검')))
   assert.ok(r.body.coverage.some(item => item.id === 'difference'))
 })
+
+test('review revision includes original facts, previous draft and only answered questions', async t => {
+  const r = await request(t, { fetchImpl: async (url, options) => {
+    const payload = JSON.parse(options.body)
+    const input = JSON.parse(payload.input)
+    assert.equal(input.previousDraft.body, '기존 초안')
+    assert.ok(input.evidence.some(e => e.id === 'difference' && e.text === '국산 밀'))
+    const extra = input.evidence.find(e => e.id.startsWith('review_'))
+    assert.equal(extra.text, '전체 등록 인원입니다')
+    assert.equal(extra.question, '100명의 의미는?')
+    assert.equal(input.evidence.filter(e => e.id.startsWith('review_')).length, 1)
+    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '수정', sections: [{ heading: '', text: '전체 등록 인원입니다', evidenceIds: [extra.id] }], reviewNotes: [], reviewQuestions: ['예약은 어디로 하나요?'], changeSummary: ['인원 의미를 보완했습니다.'] }) }] }] })
+  } }, { ...form, previousDraft: { title: '제목', body: '기존 초안' }, reviewAnswers: [{ question: '100명의 의미는?', answer: '전체 등록 인원입니다' }, { question: '요금은?', answer: ' ' }] })
+  assert.equal(r.status, 200)
+  assert.deepEqual(r.body.reviewQuestions, ['예약은 어디로 하나요?'])
+  assert.deepEqual(r.body.changeSummary, ['인원 의미를 보완했습니다.'])
+})
+test('invalid revision inputs are rejected before any paid request', async t => {
+  for (const extra of [{ reviewAnswers: [{ question: '질문', answer: 123 }] }, { reviewAnswers: Array.from({ length: 21 }, () => ({ question: '질문', answer: '답' })) }, { previousDraft: { title: '제목', body: 123 } }]) {
+    const r = await request(t, { fetchImpl: () => assert.fail('unexpected provider request') }, { ...form, ...extra })
+    assert.equal(r.status, 400)
+  }
+})

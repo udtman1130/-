@@ -18,6 +18,9 @@ function App() {
   const [resetVersion, setResetVersion] = useState(0)
   const [industryChoice, setIndustryChoice] = useState('기타·직접 입력')
   const [form, setForm] = useState(initialForm)
+  const [reviewAnswers, setReviewAnswers] = useState({})
+  const [reviewHistory, setReviewHistory] = useState([])
+  const [previousVersion, setPreviousVersion] = useState(null)
   const [result, setResult] = useState(null)
   const [copied, setCopied] = useState(false)
 
@@ -45,6 +48,9 @@ function App() {
     setCopied(false)
     setError('')
     setAccessCode('')
+    setReviewAnswers({})
+    setReviewHistory([])
+    setPreviousVersion(null)
     setResetVersion(value => value + 1)
   }
 
@@ -91,24 +97,32 @@ function App() {
     setCopied(false)
   }
 
-  async function handleGenerate(event) {
+  async function handleGenerate(event, revise = false) {
     event.preventDefault()
     if (loading) return
+    const additions = revise ? (result.reviewQuestions || []).map((question, i) => ({ question, answer: (reviewAnswers[i] || '').trim() })).filter(a => a.answer) : []
+    const history = revise ? [...reviewHistory, ...additions] : []
+    if (revise && !additions.length) return
+    if (history.length > 20) { setError('추가 답변은 최대 20개까지 반영할 수 있습니다.'); return }
+    const oldResult = result
     setLoading(true)
     setError('')
-    setResult(null)
+    if (!revise) setResult(null)
     setCopied(false)
     setPlaced({})
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) throw new Error(data?.error || '서버 연결을 확인해 주세요.')
       if (!data?.title || !data?.body) throw new Error('생성 결과가 올바르지 않습니다.')
+      setPreviousVersion(revise ? oldResult : null)
+      setReviewHistory(history)
+      setReviewAnswers({})
       setResult(data)
     } catch (error) {
       setError(['TimeoutError', 'AbortError'].includes(error.name) ? '시간이 초과됐습니다. 다시 시도해 주세요.' : error.message)
@@ -299,6 +313,13 @@ function App() {
               <section className="review-panel">
                 <h3>게시 전 내용 확인</h3>
                 <p>입력한 정보는 외부 근거가 없어도 글에 반영합니다. AI의 추측과 누락을 점검하는 안내이며, 인터넷 조사나 독립적인 사실 검증 결과는 아닙니다.</p>
+                <h4>확인할 질문에 답하기</h4>
+                {(result.reviewQuestions || []).length === 0 && <p>현재 추가 확인 질문이 없습니다. 사실 검증 완료를 뜻하지는 않습니다.</p>}
+                {(result.reviewQuestions || []).map((question, i) => <label className="field" key={i}><span>{i + 1}. {question}</span><textarea value={reviewAnswers[i] || ''} maxLength={2000} rows={3} disabled={loading} placeholder="아는 내용만 적으세요. 모르면 비워 두어도 됩니다." onChange={event => setReviewAnswers(current => ({ ...current, [i]: event.target.value }))} /></label>)}
+                {(result.reviewQuestions || []).length > 0 && <><button className="reset-button" type="button" disabled={loading || !Object.values(reviewAnswers).some(value => value.trim())} onClick={event => handleGenerate(event, true)}>{loading ? '답변을 반영하고 있어요…' : '답변을 반영해 글 수정하기'}</button><p>수정할 때 AI를 다시 호출합니다. 성공하면 새 글로 바뀌며 실패하면 기존 글과 답변이 유지됩니다.</p></>}
+                {previousVersion && <details><summary>수정 전 글 보기</summary><h4>{previousVersion.title}</h4><p style={{ whiteSpace: 'pre-wrap' }}>{previousVersion.body}</p></details>}
+                {(result.changeSummary || []).length > 0 && <div><h4>이번에 바뀐 부분</h4><ul>{result.changeSummary.map((note, i) => <li key={i}>{note}</li>)}</ul></div>}
+                <h4>점검 안내</h4>
                 <ul>{(result.reviewNotes || []).map((note, i) => <li key={i}>{note}</li>)}</ul>
                 <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || item.id}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
                 <p>사진 안내·파일명 문구를 지우고 사진을 직접 첨부하세요. 가격·조건·사례는 게시 전 원자료와 대조해 주세요.</p>
