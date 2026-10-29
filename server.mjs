@@ -38,7 +38,7 @@ export function createGenerateHandler({ env = process.env, fetchImpl = fetch } =
       clean.difference = typeof form.difference === 'string' ? form.difference.trim().slice(0, 2000) : ''
       const evidence = evidenceFor(clean, interview)
       clean.evidence = evidence
-      clean.writingGuide = { targetCharacters: '공백 포함 본문 2000~2500자, 제목·사진 설명 제외', structure: '도입 → 핵심 설명 3~4개 → 확인 목록 → 문의 안내', detail: '각 핵심 설명은 결론·이유·확인 방법·예외 조건으로 풀어 쓴다. 사례는 확인된 case가 있을 때만 작성한다.' }
+      clean.writingGuide = { targetCharacters: '공백 포함 본문 2000~2500자, 제목·사진 설명 제외', structure: '도입 → 핵심 설명 3~4개 → 확인 목록 → 문의 안내', detail: '각 핵심 설명은 결론·이유·확인 방법·예외 조건으로 풀어 쓴다. 사례는 확인된 case가 있을 때만 작성한다. evidence의 question은 업종별 입력 질문이다. answer를 그 질문에 맞게 해석하고 source에 제공된 출처·확인 날짜만 사용한다. 출처 미입력을 이유로 사용자 정보를 삭제하지 않는다.' }
       if (busy || calls >= 20) return send(429, { error: '다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.' })
       busy = true
       ownsLock = true

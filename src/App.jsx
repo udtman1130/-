@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import Interview from './Interview.jsx'
-import { industryOptions } from '../shared/interview.js'
+import { industryOptions, profileFor } from '../shared/interview.js'
 import { exportDraft, cleanText } from './export.js'
 import { photoNumber, photoFilename, buildPhotoDraft } from './photos'
 
@@ -67,6 +67,7 @@ function App() {
 
   function updateField(event) {
     const { name, value } = event.target
+    if (name === 'industry' && profileFor(value)?.name !== profileFor(form.industry)?.name) setAnswers({})
     setForm((current) => ({ ...current, [name]: value }))
     setResult(null)
     setCopied(false)
@@ -190,7 +191,7 @@ function App() {
               </label>
             </div>
 
-            <Interview industry={form.industry} answers={answers} disabled={loading} onChange={value => { setAnswers(value); setResult(null); setCopied(false) }} />
+            <Interview key={profileFor(form.industry)?.name || 'other'} industry={form.industry} answers={answers} disabled={loading} onChange={value => { setAnswers(value); setResult(null); setCopied(false) }} />
             <p className="form-footnote">업종을 선택 목록에서 바꾸면 이전 업종의 답변을 지웁니다. 입력한 답변·업체 정보는 생성 시 OpenAI로 전송됩니다. 새로고침 전에 필요한 내용은 보관해 주세요.</p>
             <fieldset className="platform-field">
               <legend className="field-label">블로그 플랫폼 <i>*</i></legend>
@@ -280,7 +281,7 @@ function App() {
                 <h3>게시 전 내용 확인</h3>
                 <p>입력한 정보는 외부 근거가 없어도 글에 반영합니다. AI의 추측과 누락을 점검하는 안내이며, 인터넷 조사나 독립적인 사실 검증 결과는 아닙니다.</p>
                 <ul>{(result.reviewNotes || []).map((note, i) => <li key={i}>{note}</li>)}</ul>
-                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내' })[item.id] || item.id}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
+                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || item.id}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
                 <p>사진 안내·파일명 문구를 지우고 사진을 직접 첨부하세요. 가격·조건·사례는 게시 전 원자료와 대조해 주세요.</p>
               </section>
               <div className="export-actions">
