@@ -200,6 +200,16 @@ function App() {
       </header>
 
       <section className="intro" id="top">
+        <svg className="export-art" viewBox="0 0 600 280" fill="none" aria-hidden="true" focusable="false">
+          <path d="M24 230H576M45 245H480M80 260H550" stroke="currentColor" opacity=".18" />
+          <path d="M390 80H550V194H390zM410 80V194M434 80V194M458 80V194M482 80V194M506 80V194M530 80V194M350 32H565M370 32V75M550 32V75" stroke="currentColor" strokeWidth="2" opacity=".22" />
+          <path d="M62 183L80 151L142 137L196 86H335L402 139L477 156L494 191V207H62V183Z" fill="#142b43" stroke="currentColor" strokeWidth="2.5" />
+          <path d="M160 137L207 99H267V137H160ZM281 99H328L378 137H281V99Z" fill="#7fa3bd" fillOpacity=".22" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M72 172H109M451 171H480M267 150V185M289 152H307M160 190H368" stroke="currentColor" strokeWidth="3" />
+          <circle cx="139" cy="202" r="33" fill="#0d1b2c" stroke="currentColor" strokeWidth="2.5" /><circle cx="139" cy="202" r="17" stroke="currentColor" strokeWidth="5" />
+          <circle cx="416" cy="202" r="33" fill="#0d1b2c" stroke="currentColor" strokeWidth="2.5" /><circle cx="416" cy="202" r="17" stroke="currentColor" strokeWidth="5" />
+          <path d="M80 51H220M210 43L220 51L210 59" stroke="#f7aa46" strokeWidth="2" />
+        </svg>
         <div className="intro-copy">
           <p className="eyebrow"><span>01</span> BLOG CONTENT STUDIO</p>
           <h1>차주의 궁금증을<br /><em>믿을 수 있는 글</em>로.</h1>

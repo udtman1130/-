@@ -39,7 +39,7 @@ button { color: inherit; }
 .intro { display: flex; justify-content: space-between; align-items: flex-end; padding: 64px 0 34px; }
 .eyebrow { margin: 0 0 20px; color: #65766a; font-size: 10px; font-weight: 500; }
 .eyebrow span { color: var(--accent); margin-right: 9px; }
-.intro h1 { margin: 0; font-family: 'Gowun Batang', 'Batang', serif; font-size: 44px; font-weight: 400; line-height: 1.42; letter-spacing: 0; }
+.intro h1 { margin: 0; font-family: 'DM Sans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 44px; font-weight: 400; line-height: 1.42; letter-spacing: 0; }
 .intro h1 em { color: var(--green); font-style: normal; }
 .intro-description { margin: 18px 0 0; color: #6b716a; font-size: 13px; line-height: 1.9; }
 .intro-aside { display: flex; flex-direction: column; align-items: flex-end; padding: 0 0 7px; color: #68746b; }
@@ -205,3 +205,92 @@ button { color: inherit; }
 .car-plan legend { padding: 0 6px; font-weight: 700; }
 .car-plan .field { margin-bottom: 12px; }
 .car-plan p { font-size: 13px; line-height: 1.8; }
+
+/* Automotive export studio — presentation only; content and behavior stay intact. */
+:root {
+  color: #192d42; background: #e9eef3;
+  --ink: #192d42; --muted: #63758a; --line: #d4dee8;
+  --green: #205c8b; --green-dark: #15466e; --paper: #fff; --accent: #c57513;
+}
+body { background: linear-gradient(180deg, #0d1b2c 0, #0d1b2c 390px, #e9eef3 390px); }
+.app-shell { max-width: 1480px; padding: 0 5%; }
+.topbar { border-color: #ffffff24; }
+.brand { color: #f6f9fc; }
+.brand-mark { background: #f7aa46; color: #10243a; border-radius: 6px; font-family: inherit; font-weight: 800; }
+.brand-dot { color: #f7aa46; }
+.topbar-meta { color: #becbda; }
+.status-dot { background: #f7aa46; box-shadow: 0 0 0 3px #f7aa461c; }
+.demo-label { color: #f7aa46; }
+.topbar-divider { background: #405164; }
+.intro { position: relative; overflow: hidden; min-height: 304px; padding: 42px 0 38px; isolation: isolate; }
+.intro-copy { z-index: 1; }
+.eyebrow { color: #96b1ca; letter-spacing: .12em; }
+.eyebrow span { color: #f7aa46; }
+.intro h1 { color: #f5f8fc; font-size: 42px; font-weight: 750; line-height: 1.4; letter-spacing: -.04em; }
+.intro h1 em { color: #f7aa46; }
+.intro-description { color: #b8c8d9; max-width: 620px; }
+.export-art { position: absolute; right: 0; bottom: 0; width: 46%; max-width: 550px; color: #8ca9c0; z-index: -1; }
+.intro-aside { position: absolute; right: 2px; top: 24px; color: #8ca9c0; }
+.aside-title { color: #d6e2ed; font-family: inherit; font-size: 14px; }
+.aside-rule { background: #476078; }
+.demo-notice { border: 1px solid #d3dfe9; border-left: 4px solid #e49a36; border-radius: 8px; background: #fff; color: #52677c; box-shadow: 0 5px 20px #10243a08; }
+.demo-notice strong { color: #99600f; }
+.notice-icon { color: #99600f; border-color: #d6a45c; }
+.workspace { margin-top: 20px; border-color: #cdd9e4; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 36px #162f4810; }
+.form-panel, .result-panel { padding: 30px; }
+.section-kicker { color: #5d7892; letter-spacing: .08em; }
+.section-heading h2, .result-header h2 { font-weight: 750; }
+.field-label { color: #344d65; font-size: 12px; }
+.field input, .field textarea, .field select, .interview textarea, .photo-details input { border-color: #cbd7e3; border-radius: 6px; color: #192d42; background: #fff; font-size: 13px; }
+.field input { height: 44px; }
+.field input[readonly] { background: #edf2f7; color: #4c6881; }
+.field input:focus, .field textarea:focus, .field select:focus, .interview textarea:focus { outline: 2px solid #205c8b; outline-offset: 2px; box-shadow: none; border-color: #205c8b; }
+.platform-option { border-radius: 6px; border-color: #ccd8e4; }
+.platform-option.selected { border-color: #205c8b; background: #eef5fb; }
+.generate-button { min-height: 49px; height: auto; padding: 14px 16px; border-radius: 6px; background: #205c8b; box-shadow: 0 4px 10px #205c8b20; font-size: 13px; }
+.generate-button:hover { background: #15466e; }
+.car-plan { background: #f3f7fb; border-color: #cad9e7; border-radius: 8px; border-top: 3px solid #205c8b; }
+.car-plan legend { color: #234d72; }
+.interview, .review-panel, .preparation-panel { background: #f3f7fb; border-color: #cddae7; border-radius: 8px; }
+.answer-options button, .export-actions button { color: #284f71; border-color: #bacdde; font-size: 12px; }
+.answer-options button:hover:not(:disabled), .export-actions button:hover:not(:disabled) { background: #e7f0f8; border-color: #205c8b; }
+.result-panel { background-color: #f0f4f8; background-image: linear-gradient(#cbd8e52b 1px, transparent 1px), linear-gradient(90deg, #cbd8e52b 1px, transparent 1px); background-size: 24px 24px; }
+.result-platform { background: #e7f0f8; color: #345d80; border-color: #bed0e0; border-radius: 4px; }
+.empty-title { color: #314e69; font-family: inherit; font-weight: 700; }
+.empty-description { color: #667d93; }
+.paper-illustration::before, .paper-illustration::after { background: #e5edf5; border-color: #bfcedc; }
+.paper-sheet { background: #fff; border-color: #9fb8cf; }
+.paper-sheet span { background: #c4d4e3; }
+.paper-sheet b { color: #a76611; border-color: #d8a45c; background: #fff5e7; }
+.draft-content { background: #fff; border-color: #d0dce7; border-radius: 8px; max-height: 620px; }
+.draft-content h3 { font-family: inherit; color: #203d57; }
+.draft-body { color: #34495e; font-size: 13px; }
+.copy-button { background: #fff; border-color: #9bb4ca; color: #24567f; border-radius: 6px; }
+.copy-button:hover { background: #e7f0f8; }
+.reset-button { border-radius: 6px; font-size: 12px; }
+.photo-section { border-color: #d4dee8; }
+.photo-placeholder { background: #edf4fa; border-color: #7d9fbd; }
+.footer { color: #61778b; line-height: 1.7; }
+button, input, select, textarea { accent-color: #205c8b; }
+button:focus-visible, a:focus-visible { outline: 3px solid #d78b26; outline-offset: 3px; }
+@media (min-width: 1200px) { .app-shell { padding-right: 6%; padding-left: 6%; } }
+@media (max-width: 1000px) { .export-art { opacity: .4; width: 48%; } .intro-aside { display: none; } }
+@media (max-width: 760px) {
+  body { background: linear-gradient(180deg, #0d1b2c 0, #0d1b2c 390px, #e9eef3 390px); }
+  .app-shell { padding: 0 20px; }
+  .intro { min-height: 320px; padding-top: 32px; align-items: flex-start; }
+  .intro h1 { font-size: 34px; }
+  .intro-description { max-width: 470px; }
+  .export-art { right: -35px; bottom: -12px; width: 300px; opacity: .23; }
+  .form-panel, .result-panel { padding: 24px; }
+}
+@media (max-width: 480px) {
+  .app-shell { padding: 0 12px; }
+  .brand { font-size: 18px; }
+  .topbar-meta { font-size: 9px; gap: 5px; }
+  .topbar-divider, .demo-label { display: none; }
+  .intro h1 { font-size: 31px; }
+  .intro-description { font-size: 12px; }
+  .form-panel, .result-panel { padding: 22px 16px; }
+  .car-plan, .interview, .review-panel, .preparation-panel { padding: 15px; }
+}
