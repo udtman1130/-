@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Interview from './Interview.jsx'
 import { industryOptions, profileFor } from '../shared/interview.js'
+import { sourcesForText } from '../shared/research-sources.js'
 import { exportDraft, cleanText } from './export.js'
 import { photoNumber, photoFilename, buildPhotoDraft } from './photos'
 
@@ -24,6 +25,13 @@ function App() {
   const [preparation, setPreparation] = useState(null)
   const [preparationAnswers, setPreparationAnswers] = useState({})
   const [preparing, setPreparing] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const [researchScope, setResearchScope] = useState('business')
+  const [researchQuery, setResearchQuery] = useState('')
+  const [identityUrl, setIdentityUrl] = useState('')
+  const [research, setResearch] = useState(null)
+  const [selectedResearch, setSelectedResearch] = useState([])
+  const researchPanel = useRef(null)
   const [result, setResult] = useState(null)
   const [copied, setCopied] = useState(false)
 
@@ -37,8 +45,40 @@ function App() {
   const photoUrls = useRef(new Set())
   useEffect(() => () => photoUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
 
-  const inputSnapshot = JSON.stringify({ form, answers })
+  const researchIdentity = JSON.stringify([form.business.trim(), form.industry.trim(), form.region.trim()])
+  const activeResearch = research?.identity === researchIdentity ? research : null
+  const inputSnapshot = JSON.stringify({ form, answers, researchSignature: activeResearch?.signature || null, selectedResearch: activeResearch ? selectedResearch : [] })
   const activePreparation = preparation?.snapshot === inputSnapshot ? preparation : null
+  function researchEvidence() {
+    return activeResearch && selectedResearch.length ? { bundle: activeResearch.bundle, signature: activeResearch.signature, selectedIds: selectedResearch } : undefined
+  }
+  function chooseSearchTopic(question) {
+    setResearchQuery(question)
+    researchPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  async function handleResearch(event) {
+    event.preventDefault()
+    if (loading || !event.currentTarget.form.reportValidity()) return
+    if (!researchQuery.trim()) { setError('인터넷에서 찾을 내용을 적어주세요.'); return }
+    if (researchScope === 'business' && !identityUrl.trim()) { setError('업체 정보 검색에는 공식 페이지나 지도 주소가 필요합니다.'); return }
+    setLoading(true)
+    setSearching(true)
+    setError('')
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
+        body: JSON.stringify({ business: form.business, industry: form.industry, region: form.region, offering: form.offering, platform: form.platform, action: 'research', researchRequest: { scope: researchScope, query: researchQuery, identityUrl } }),
+        signal: AbortSignal.timeout(70000),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || '인터넷 검색에 실패했습니다.')
+      if (!Array.isArray(data?.bundle?.findings) || !data.signature) throw new Error('검색 결과를 읽지 못했습니다.')
+      setResearch({ ...data, identity: researchIdentity })
+      setSelectedResearch([])
+    } catch (error) {
+      setError(['TimeoutError', 'AbortError'].includes(error.name) ? '검색 시간이 초과됐습니다. 기존 입력은 유지됩니다. 잠시 후 다시 검색해 주세요.' : error.message)
+    } finally { setLoading(false); setSearching(false) }
+  }
   function preparationResponses() {
     return activePreparation ? activePreparation.questions.map((item, i) => ({ question: item.question, answer: (preparationAnswers[i] || '').trim() })).filter(item => item.answer) : []
   }
@@ -52,7 +92,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, action: 'prepare', interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, researchEvidence: researchEvidence(), action: 'prepare', interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -81,6 +121,11 @@ function App() {
     setAccessCode('')
     setPreparation(null)
     setPreparationAnswers({})
+    setResearch(null)
+    setSelectedResearch([])
+    setResearchQuery('')
+    setIdentityUrl('')
+    setResearchScope('business')
     setReviewAnswers({})
     setReviewHistory([])
     setPreviousVersion(null)
@@ -147,7 +192,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, preparationAnswers: preparationResponses(), ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, researchEvidence: researchEvidence(), preparationAnswers: preparationResponses(), ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -165,7 +210,7 @@ function App() {
   async function handleCopy(mode = 'text') {
     if (!result) return
     try {
-      const output = exportDraft(blocks, (result.sections || []).map(section => section.heading))
+      const output = exportDraft(blocks, (result.sections || []).map(section => section.heading), result.sources || [], result.sections || [], result.researchUsed || [])
       if (mode === 'title') await navigator.clipboard.writeText(cleanText(result.title))
       else if (mode === 'html') await navigator.clipboard.writeText(output.html)
       else if (mode === 'rich') {
@@ -207,7 +252,7 @@ function App() {
 
       <div className="demo-notice" role="note">
         <span className="notice-icon" aria-hidden="true">i</span>
-        <p><strong>AI 글 생성</strong> 입력한 업체 정보가 OpenAI로 전송됩니다. 실제 검색·사실 검증 기능은 없으며, 게시 전 검토가 필요합니다. 검색 순위나 AI 인용을 보장하지 않습니다.</p>
+        <p><strong>AI 글 생성</strong> 입력한 업체 정보가 OpenAI로 전송됩니다. 인터넷 검색은 별도 버튼으로 실행하며, 검색 결과도 게시 전 확인이 필요합니다. 검색 순위나 AI 인용을 보장하지 않습니다.</p>
       </div>
 
       <div className="workspace">
@@ -304,6 +349,19 @@ function App() {
               </ol>
             </section>
 
+            <section className="preparation-panel research-panel" ref={researchPanel}>
+              <h3>부족한 정보 인터넷에서 찾기</h3>
+              <p>검색할 때 업체 식별 정보와 찾을 내용이 OpenAI 검색으로 전송됩니다. 비공개 고객 정보는 적지 마세요. 검색·AI 비용이 추가됩니다.</p>
+              <label className="field"><span>검색 범위</span><select disabled={loading} value={researchScope} onChange={event => setResearchScope(event.target.value)}><option value="business">이 업체의 정보 (공식 페이지·지도 기준)</option><option value="general">업종 일반 정보 (절차·용어·공식 안내)</option></select></label>
+              {researchScope === 'business' && <label className="field"><span>업체 공식 페이지 또는 지도 주소</span><input type="url" value={identityUrl} disabled={loading} placeholder="https://로 시작하는 공개 주소" onChange={event => setIdentityUrl(event.target.value)} /></label>}
+              <label className="field"><span>어떤 정보를 찾을까요?</span><textarea value={researchQuery} maxLength={500} rows={2} disabled={loading} placeholder="예: 이 업체의 영업시간과 예약 방법 / 중고차 수출 말소 절차" onChange={event => setResearchQuery(event.target.value)} /></label>
+              <button className="reset-button" type="button" disabled={loading} onClick={handleResearch}>{searching ? '출처가 있는 정보를 찾고 있어요…' : '인터넷 검색하기 (추가 비용)'}</button>
+              {activeResearch && <div aria-live="polite"><p>{activeResearch.notice}</p><p>검색일: {new Date(activeResearch.bundle.checkedAt).toLocaleString('ko-KR')} · 원문 정보의 기준일과는 다릅니다.</p>
+                {activeResearch.bundle.findings.map(item => <div className="research-finding" key={item.id}><p>{item.text} {item.sources.map((source, i) => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">[출처 {i + 1}: {source.title}] </a>)}</p>
+                  <label><input type="checkbox" disabled={loading} checked={selectedResearch.includes(item.id)} onChange={event => setSelectedResearch(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} />업체 일치 여부·내용·기존 입력과의 차이를 확인했고, 다음 글 생성·수정에 사용합니다.</label></div>)}
+                {activeResearch.bundle.findings.length > 0 && <p>선택 {selectedResearch.length}개 · 기존 글과 입력칸은 자동 변경되지 않습니다. 선택 후 아래 글 생성 버튼을 누르세요. 새로 검색하면 이전 검색 선택은 초기화됩니다.</p>}
+              </div>}
+            </section>
             <p className="form-footnote">기본 본문 목표: 2,000~2,500자. 사진 설명은 별도이며, 확인된 정보가 부족하면 보완 질문을 안내합니다.</p>
             <button className="generate-button" type="submit" disabled={loading}>
               <span>{preparing ? '입력 자료와 질문을 정리하고 있어요…' : '1. 자료 정리·핵심 질문 확인'}</span>
@@ -312,20 +370,21 @@ function App() {
             {activePreparation && <section className="preparation-panel" aria-live="polite">
               <h3>입력하신 정보를 이렇게 모았어요</h3>
               <p>직접 입력하고 사용하도록 확인한 자료입니다. 인터넷 검증 결과가 아닙니다.</p>
-              <details open><summary>글에 사용할 자료 보기</summary>{activePreparation.summary.map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개', audience: '대상 고객', question: '글의 핵심 질문', answer: '업체 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '연락 방법', source: '출처·확인 시점' })[item.id] || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong><br />{item.text}</p>)}</details>
+              <details open><summary>글에 사용할 자료 보기</summary>{activePreparation.summary.map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개', audience: '대상 고객', question: '글의 핵심 질문', answer: '업체 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '연락 방법', source: '출처·확인 시점' })[item.id] || (item.id.startsWith('research_') ? '검색 보완 정보' : item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong><br />{item.text} {(item.sources || []).map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">[출처: {source.title}] </a>)}</p>)}</details>
               <h3>글을 쓰기 전에 이것만 알려주세요</h3>
               {activePreparation.questions.length === 0 && <p>추가 질문이 없습니다. 아래에서 글을 작성할 수 있습니다.</p>}
               {activePreparation.questions.map((item, i) => <div key={i}>
                 <label className="field"><span>{i + 1}. {item.question}</span>
                   <textarea value={preparationAnswers[i] || ''} rows={3} maxLength={2000} disabled={loading} placeholder="아는 내용만 적으세요. 모르면 비워 두고 작성할 수 있습니다." onChange={event => setPreparationAnswers(current => ({ ...current, [i]: event.target.value }))} />
                 </label>
+                <button className="reset-button" type="button" disabled={loading} onClick={() => chooseSearchTopic(item.question)}>이 질문을 검색 주제로 선택</button>
                 <div className="answer-options">{item.options.map(option => <button type="button" key={option} disabled={loading} onClick={() => setPreparationAnswers(current => ({ ...current, [i]: option }))}>{option}</button>)}</div>
               </div>)}
               <p>기존 자료를 고치려면 위의 입력칸을 수정하세요. 자료가 바뀌면 확인 단계도 다시 진행할 수 있습니다.</p>
             </section>}
             <button className="generate-button" type="button" disabled={loading} onClick={event => {
               if (event.currentTarget.form.reportValidity()) handleGenerate(event)
-            }}><span>{loading && !preparing ? 'AI가 글을 작성하고 있어요…' : activePreparation ? '2. 답변을 반영해 글 작성하기' : '자료 확인 건너뛰고 바로 작성'}</span></button>
+            }}><span>{loading && !preparing && !searching ? 'AI가 글을 작성하고 있어요…' : activePreparation ? '2. 답변을 반영해 글 작성하기' : '바로 글 생성하기'}</span></button>
             <button className="reset-button" type="button" disabled={loading} onClick={resetInputs}>입력 내용 초기화</button>
             <p className="form-footnote"><span aria-hidden="true">✳</span> 생성된 글은 초안입니다. 게시 전 내용을 꼭 확인해 주세요.</p>
           </form>
@@ -350,7 +409,7 @@ function App() {
                 <p className="form-footnote">공백 포함, 제목·사진 설명 제외. 자료가 부족하면 사실을 만들지 않고 보완할 내용을 안내합니다.</p>
                 <div className="draft-body">{blocks.map((block, index) => block.type === 'text'
                   ? <div key={index} className="draft-paragraph">{cleanText(block.text).split('\n').map((line, lineIndex) => (result.sections || []).some(section => cleanText(section.heading) === line)
-                    ? <h3 key={lineIndex}>{line}</h3> : <p key={lineIndex}>{line}</p>)}</div>
+                    ? <h3 key={lineIndex}>{line}</h3> : <p key={lineIndex}>{line}</p>)}{sourcesForText(block.text, result.sections, result.researchUsed).map(source => <a className="research-citation" key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">[출처: {source.title}] </a>)}</div>
                   : <div key={index} className="photo-placeholder">
                     <img src={block.photo.url} alt={block.photo.description || `사진 ${photoNumber(block.photo.id)}`} />
                     <div><strong>[사진 {photoNumber(block.photo.id)} 넣는 곳 — {block.photo.description.trim() || '설명 없음'}]</strong>
@@ -362,16 +421,18 @@ function App() {
               </div>
               <section className="review-panel">
                 <h3>게시 전 내용 확인</h3>
-                <p>입력한 정보는 외부 근거가 없어도 글에 반영합니다. AI의 추측과 누락을 점검하는 안내이며, 인터넷 조사나 독립적인 사실 검증 결과는 아닙니다.</p>
+                <p>입력한 정보는 외부 근거가 없어도 글에 반영합니다. AI의 추측과 누락을 점검하는 안내이며, 검색으로 보완한 내용은 출처를 따로 표시합니다. 독립적인 사실 검증을 보장하지 않습니다.</p>
+                {(result.researchUsed || []).length > 0 && <details><summary>글에 연결된 검색 자료와 출처</summary>{result.researchUsed.map(item => <p key={item.id}>{item.text}<br />{item.scope === 'general' ? '업종 일반 정보' : '업체 정보'} · 검색일 {item.checkedAt.slice(0, 10)}<br />{item.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title} </a>)}</p>)}</details>}
                 <h4>확인할 질문에 답하기</h4>
                 {(result.reviewQuestions || []).length === 0 && <p>현재 추가 확인 질문이 없습니다. 사실 검증 완료를 뜻하지는 않습니다.</p>}
                 {(result.reviewQuestions || []).map((question, i) => <label className="field" key={i}><span>{i + 1}. {question}</span><textarea value={reviewAnswers[i] || ''} maxLength={2000} rows={3} disabled={loading} placeholder="아는 내용만 적으세요. 모르면 비워 두어도 됩니다." onChange={event => setReviewAnswers(current => ({ ...current, [i]: event.target.value }))} /></label>)}
+                {(result.reviewQuestions || []).map((question, i) => <button className="reset-button" type="button" key={`search-${i}`} disabled={loading} onClick={() => chooseSearchTopic(question)}>확인 질문 {i + 1}을 검색 주제로 선택</button>)}
                 {(result.reviewQuestions || []).length > 0 && <><button className="reset-button" type="button" disabled={loading || !Object.values(reviewAnswers).some(value => value.trim())} onClick={event => handleGenerate(event, true)}>{loading ? '답변을 반영하고 있어요…' : '답변을 반영해 글 수정하기'}</button><p>수정할 때 AI를 다시 호출합니다. 성공하면 새 글로 바뀌며 실패하면 기존 글과 답변이 유지됩니다.</p></>}
                 {previousVersion && <details><summary>수정 전 글 보기</summary><h4>{previousVersion.title}</h4><p style={{ whiteSpace: 'pre-wrap' }}>{previousVersion.body}</p></details>}
                 {(result.changeSummary || []).length > 0 && <div><h4>이번에 바뀐 부분</h4><ul>{result.changeSummary.map((note, i) => <li key={i}>{note}</li>)}</ul></div>}
                 <h4>점검 안내</h4>
                 <ul>{(result.reviewNotes || []).map((note, i) => <li key={i}>{note}</li>)}</ul>
-                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
+                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || (item.id.startsWith('research_') ? '검색 보완 정보' : item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
                 <p>사진 안내·파일명 문구를 지우고 사진을 직접 첨부하세요. 가격·조건·사례는 게시 전 원자료와 대조해 주세요.</p>
               </section>
               <div className="export-actions">

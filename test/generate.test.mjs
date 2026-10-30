@@ -154,3 +154,41 @@ test('invalid preparation answer limits and action are rejected before provider 
     assert.equal(r.status, 400)
   }
 })
+
+test('research lookup returns signed cited candidates and generation only adopts selected candidates', async t => {
+  const cited = '영업시간은 오전 9시입니다. [1]'
+  const lookup = await request(t, { fetchImpl: async (url, options) => {
+    const payload = JSON.parse(options.body)
+    assert.equal(payload.tool_choice, 'required')
+    assert.equal(payload.tools[0].type, 'web_search')
+    assert.equal(payload.text, undefined)
+    assert.ok(!payload.input.includes('비공개 고객 메모'))
+    return Response.json({ status: 'completed', output: [{ type: 'web_search_call', status: 'completed' }, { type: 'message', content: [{ type: 'output_text', text: cited, annotations: [{ type: 'url_citation', url: 'https://example.com/shop', title: '업체 안내', start_index: cited.length - 3, end_index: cited.length }] }] }] })
+  } }, { ...form, difference: '비공개 고객 메모', action: 'research', researchRequest: { scope: 'business', query: '영업시간', identityUrl: 'https://example.com/shop' } })
+  assert.equal(lookup.status, 200)
+  assert.equal(lookup.body.bundle.findings.length, 1)
+  for (const selectedIds of [[], ['finding_1']]) {
+    const r = await request(t, { fetchImpl: async (url, options) => {
+      const payload = JSON.parse(options.body)
+      assert.equal(payload.tools, undefined)
+      const input = JSON.parse(payload.input)
+      const extra = input.evidence.filter(e => e.id.startsWith('research_'))
+      assert.equal(extra.length, selectedIds.length)
+      assert.ok(input.evidence.some(e => e.id === 'difference' && e.text === '국산 밀'))
+      return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '제목', sections: [{ heading: '', text: extra.length ? cited : '본문', evidenceIds: extra.length ? [extra[0].id] : ['business'] }], reviewNotes: [], reviewQuestions: [], changeSummary: [] }) }] }] })
+    } }, { ...form, researchEvidence: { ...lookup.body, selectedIds } })
+    assert.equal(r.status, 200)
+    assert.equal(r.body.sources.length, selectedIds.length)
+    assert.equal(r.body.researchUsed.length, selectedIds.length)
+  }
+  const tampered = structuredClone(lookup.body)
+  tampered.bundle.findings[0].text = '위조한 서비스'
+  const blocked = await request(t, { fetchImpl: () => assert.fail('unexpected provider request') }, { ...form, researchEvidence: { ...tampered, selectedIds: ['finding_1'] } })
+  assert.equal(blocked.status, 400)
+})
+test('missing identity link is rejected without search charges and quota failures remain actionable', async t => {
+  const missing = await request(t, { fetchImpl: () => assert.fail('unexpected provider request') }, { ...form, action: 'research', researchRequest: { scope: 'business', query: '가격' } })
+  assert.equal(missing.status, 400)
+  const quota = await request(t, { fetchImpl: async () => new Response('', { status: 429 }) }, { ...form, action: 'research', researchRequest: { scope: 'general', query: '절차' } })
+  assert.equal(quota.status, 429)
+})
