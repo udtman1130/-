@@ -200,7 +200,3 @@ button { color: inherit; }
 .preparation-panel h3 { margin: 12px 0; font-size: 18px; }
 .preparation-panel p { overflow-wrap: anywhere; white-space: pre-wrap; }
 .preparation-panel + .generate-button { margin-top: 14px; }
-
-.research-finding { margin: 14px 0; padding: 14px; background: white; border: 1px solid #d4daca; border-radius: 8px; }
-.research-finding a, .research-citation { color: #355b84; text-decoration: underline; overflow-wrap: anywhere; font-size: 13px; }
-.research-panel label { font-size: 14px; }
