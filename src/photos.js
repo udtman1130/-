@@ -1,8 +1,7 @@
 export const photoNumber = id => String(id).padStart(2, '0')
 export function photoFilename(photo) {
-  const stem = (photo.description.trim() || '사진').normalize('NFC').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40)
   const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[photo.file.type]
-  return `사진${photoNumber(photo.id)}_${stem}.${extension}`
+  return `photo_${photoNumber(photo.id)}.${extension}`
 }
 export function buildPhotoDraft(body, photos) {
   const paragraphs = body.split(/\n\s*\n/).filter(p => p.trim())
@@ -18,5 +17,5 @@ export function buildPhotoDraft(body, photos) {
   return blocks
 }
 export function draftText(blocks) {
-  return blocks.map(block => block.type === 'text' ? block.text : `[사진 ${photoNumber(block.photo.id)} 넣는 곳 — ${block.photo.description.trim() || '설명 없음'}]\n사진 파일: ${photoFilename(block.photo)}`).join('\n\n')
+  return blocks.map(block => block.type === 'text' ? block.text : `[사진 ${photoNumber(block.photo.id)} 넣는 곳]\n사진 파일: ${photoFilename(block.photo)}\n사진 설명: ${block.photo.description.trim() || '게시 전 사진 설명을 입력해 주세요.'}`).join('\n\n')
 }

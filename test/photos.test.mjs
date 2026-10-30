@@ -6,7 +6,7 @@ test('reordering preserves photo identity and export filename', () => {
   const photos = [photo(3), photo(1)]
   const blocks = buildPhotoDraft('첫 문단\n\n둘째 문단', photos)
   assert.deepEqual(blocks.filter(b => b.type === 'photo').map(b => b.photo.id), [3, 1])
-  assert.equal(photoFilename(photos[0]), '사진03_차량_앞면.jpg')
+  assert.equal(photoFilename(photos[0]), 'photo_03.jpg')
 })
 test('every selected photo appears exactly once even with fewer paragraphs', () => {
   const photos = [photo(1), photo(4), photo(9)]
@@ -21,4 +21,10 @@ test('export includes only active photo references and sanitizes filenames', () 
   assert.ok(text.includes('[사진 05 넣는 곳'))
   assert.ok(!text.includes('사진 01'))
   assert.ok(!photoFilename(photo(5, '../../앞면')).includes('/'))
+})
+
+// Public captions survive export independently of removable placement instructions.
+test('photo caption stays separate from placement and filename', () => {
+  const text = draftText(buildPhotoDraft('본문', [photo(2, '작업 전 벽면 상태')]))
+  assert.ok(text.includes('[사진 02 넣는 곳]\n사진 파일: photo_02.jpg\n사진 설명: 작업 전 벽면 상태'))
 })
