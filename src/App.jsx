@@ -21,6 +21,9 @@ function App() {
   const [reviewAnswers, setReviewAnswers] = useState({})
   const [reviewHistory, setReviewHistory] = useState([])
   const [previousVersion, setPreviousVersion] = useState(null)
+  const [preparation, setPreparation] = useState(null)
+  const [preparationAnswers, setPreparationAnswers] = useState({})
+  const [preparing, setPreparing] = useState(false)
   const [result, setResult] = useState(null)
   const [copied, setCopied] = useState(false)
 
@@ -33,6 +36,34 @@ function App() {
   const nextPhotoId = useRef(1)
   const photoUrls = useRef(new Set())
   useEffect(() => () => photoUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
+
+  const inputSnapshot = JSON.stringify({ form, answers })
+  const activePreparation = preparation?.snapshot === inputSnapshot ? preparation : null
+  function preparationResponses() {
+    return activePreparation ? activePreparation.questions.map((item, i) => ({ question: item.question, answer: (preparationAnswers[i] || '').trim() })).filter(item => item.answer) : []
+  }
+  async function handlePrepare(event) {
+    event.preventDefault()
+    if (loading) return
+    setLoading(true)
+    setPreparing(true)
+    setError('')
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
+        body: JSON.stringify({ ...form, action: 'prepare', interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        signal: AbortSignal.timeout(70000),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || '자료 정리에 실패했습니다.')
+      if (!Array.isArray(data?.summary) || !Array.isArray(data?.questions)) throw new Error('자료 정리 결과를 읽지 못했습니다.')
+      setPreparation({ ...data, snapshot: inputSnapshot })
+      setPreparationAnswers({})
+    } catch (error) {
+      setError(['TimeoutError', 'AbortError'].includes(error.name) ? '시간이 초과됐습니다. 다시 시도하거나 바로 작성해 주세요.' : error.message)
+    } finally { setLoading(false); setPreparing(false) }
+  }
 
   function resetInputs() {
     if (loading || !window.confirm('입력한 업체 정보, 질문 답변, 사진, 생성된 글을 모두 초기화할까요? 필요한 글은 먼저 복사해 주세요.')) return
@@ -48,6 +79,8 @@ function App() {
     setCopied(false)
     setError('')
     setAccessCode('')
+    setPreparation(null)
+    setPreparationAnswers({})
     setReviewAnswers({})
     setReviewHistory([])
     setPreviousVersion(null)
@@ -114,7 +147,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, preparationAnswers: preparationResponses(), ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -187,7 +220,7 @@ function App() {
             <span className="required-note"><i>*</i> 필수 입력</span>
           </div>
 
-          <form onSubmit={handleGenerate} aria-busy={loading}>
+          <form onSubmit={handlePrepare} aria-busy={loading}>
             {error && <p role="alert" className="error-message">{error}</p>}
             <label className="field">
               <span className="field-label">앱 이용 암호 <i>*</i></span>
@@ -273,9 +306,26 @@ function App() {
 
             <p className="form-footnote">기본 본문 목표: 2,000~2,500자. 사진 설명은 별도이며, 확인된 정보가 부족하면 보완 질문을 안내합니다.</p>
             <button className="generate-button" type="submit" disabled={loading}>
-              <span>{loading ? 'AI가 글을 작성하고 있어요…' : 'AI로 블로그 글 생성하기'}</span>
-              <span className="button-arrow" aria-hidden="true">↗</span>
+              <span>{preparing ? '입력 자료와 질문을 정리하고 있어요…' : '1. 자료 정리·핵심 질문 확인'}</span>
             </button>
+            <p className="form-footnote">자료 확인 시 AI를 한 번 호출합니다. 글 작성은 아래 버튼을 눌렀을 때 별도로 진행합니다.</p>
+            {activePreparation && <section className="preparation-panel" aria-live="polite">
+              <h3>입력하신 정보를 이렇게 모았어요</h3>
+              <p>직접 입력하고 사용하도록 확인한 자료입니다. 인터넷 검증 결과가 아닙니다.</p>
+              <details open><summary>글에 사용할 자료 보기</summary>{activePreparation.summary.map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개', audience: '대상 고객', question: '글의 핵심 질문', answer: '업체 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '연락 방법', source: '출처·확인 시점' })[item.id] || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong><br />{item.text}</p>)}</details>
+              <h3>글을 쓰기 전에 이것만 알려주세요</h3>
+              {activePreparation.questions.length === 0 && <p>추가 질문이 없습니다. 아래에서 글을 작성할 수 있습니다.</p>}
+              {activePreparation.questions.map((item, i) => <div key={i}>
+                <label className="field"><span>{i + 1}. {item.question}</span>
+                  <textarea value={preparationAnswers[i] || ''} rows={3} maxLength={2000} disabled={loading} placeholder="아는 내용만 적으세요. 모르면 비워 두고 작성할 수 있습니다." onChange={event => setPreparationAnswers(current => ({ ...current, [i]: event.target.value }))} />
+                </label>
+                <div className="answer-options">{item.options.map(option => <button type="button" key={option} disabled={loading} onClick={() => setPreparationAnswers(current => ({ ...current, [i]: option }))}>{option}</button>)}</div>
+              </div>)}
+              <p>기존 자료를 고치려면 위의 입력칸을 수정하세요. 자료가 바뀌면 확인 단계도 다시 진행할 수 있습니다.</p>
+            </section>}
+            <button className="generate-button" type="button" disabled={loading} onClick={event => {
+              if (event.currentTarget.form.reportValidity()) handleGenerate(event)
+            }}><span>{loading && !preparing ? 'AI가 글을 작성하고 있어요…' : activePreparation ? '2. 답변을 반영해 글 작성하기' : '자료 확인 건너뛰고 바로 작성'}</span></button>
             <button className="reset-button" type="button" disabled={loading} onClick={resetInputs}>입력 내용 초기화</button>
             <p className="form-footnote"><span aria-hidden="true">✳</span> 생성된 글은 초안입니다. 게시 전 내용을 꼭 확인해 주세요.</p>
           </form>
@@ -321,7 +371,7 @@ function App() {
                 {(result.changeSummary || []).length > 0 && <div><h4>이번에 바뀐 부분</h4><ul>{result.changeSummary.map((note, i) => <li key={i}>{note}</li>)}</ul></div>}
                 <h4>점검 안내</h4>
                 <ul>{(result.reviewNotes || []).map((note, i) => <li key={i}>{note}</li>)}</ul>
-                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || item.id}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
+                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
                 <p>사진 안내·파일명 문구를 지우고 사진을 직접 첨부하세요. 가격·조건·사례는 게시 전 원자료와 대조해 주세요.</p>
               </section>
               <div className="export-actions">

@@ -112,3 +112,45 @@ test('invalid revision inputs are rejected before any paid request', async t => 
     assert.equal(r.status, 400)
   }
 })
+
+test('preparation returns original input summary and at most three easy questions without drafting', async t => {
+  const r = await request(t, { fetchImpl: async (url, options) => {
+    const payload = JSON.parse(options.body)
+    assert.equal(payload.text.format.name, 'preparation_questions')
+    assert.equal(payload.max_output_tokens, 1800)
+    assert.ok(payload.instructions.includes('글은 작성하지 마라'))
+    assert.ok(payload.instructions.includes('이미 답한 내용은 묻지 마라'))
+    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ questions: [{ question: '어떤 감가를 설명하나요?', options: ['연식에 따른 가치 하락', '전화 견적과 현장 가격 차이'] }] }) }] }] })
+  } }, { ...form, action: 'prepare', difference: '매니저 100명' })
+  assert.equal(r.status, 200)
+  assert.equal(r.body.questions.length, 1)
+  assert.equal(r.body.summary.find(e => e.id === 'difference').text, '매니저 100명')
+  assert.equal(r.body.body, undefined)
+})
+test('preparation accepts sufficient material with no questions and rejects malformed model output', async t => {
+  for (const questions of [[], Array.from({ length: 4 }, () => ({ question: '질문', options: [] })), [{ question: '질문', options: '잘못된 선택지' }]]) {
+    const r = await request(t, { fetchImpl: async () => Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ questions }) }] }] }) }, { ...form, action: 'prepare' })
+    assert.equal(r.status, questions.length === 0 ? 200 : 502)
+  }
+})
+test('generation and later revision retain answered preparation facts, never empty answers', async t => {
+  for (const previousDraft of [undefined, { title: '기존 제목', body: '기존 본문' }]) {
+    const r = await request(t, { fetchImpl: async (url, options) => {
+      const payload = JSON.parse(options.body)
+      assert.equal(payload.text.format.name, 'blog_draft')
+      const input = JSON.parse(payload.input)
+      const facts = input.evidence.filter(e => e.id.startsWith('preparation_'))
+      assert.equal(facts.length, 1)
+      assert.equal(facts[0].text, '전화 견적과 현장 가격 차이')
+      assert.ok(input.evidence.some(e => e.id === 'business'))
+      return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: '제목', sections: [{ heading: '', text: '전화 견적과 현장 가격 차이', evidenceIds: [facts[0].id] }], reviewNotes: [], reviewQuestions: [], changeSummary: [] }) }] }] })
+    } }, { ...form, previousDraft, preparationAnswers: [{ question: '어떤 감가인가요?', answer: '전화 견적과 현장 가격 차이' }, { question: '연락처는?', answer: '' }] })
+    assert.equal(r.status, 200)
+  }
+})
+test('invalid preparation answer limits and action are rejected before provider calls', async t => {
+  for (const extra of [{ action: 'unknown' }, { preparationAnswers: [{ question: '질문', answer: 123 }] }, { preparationAnswers: Array.from({ length: 4 }, () => ({ question: '질문', answer: '답' })) }]) {
+    const r = await request(t, { fetchImpl: () => assert.fail('unexpected provider request') }, { ...form, ...extra })
+    assert.equal(r.status, 400)
+  }
+})
