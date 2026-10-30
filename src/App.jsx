@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import Interview from './Interview.jsx'
-import { industryOptions, profileFor } from '../shared/interview.js'
+import { articlePurposes, exportTopics, vehicleFields, initialCarExport, carEvidenceLabel, effectiveTopicId } from '../shared/car-export.js'
 import { exportDraft, cleanText } from './export.js'
 import { photoNumber, photoFilename, buildPhotoDraft } from './photos'
 
 const initialForm = {
   business: '',
-  industry: '',
+  industry: '중고차 수출',
   region: '',
   offering: '',
   difference: '',
@@ -14,9 +14,18 @@ const initialForm = {
 }
 
 function App() {
-  const [answers, setAnswers] = useState({})
+  const [carExport, setCarExport] = useState(initialCarExport)
+  const [answerSets, setAnswerSets] = useState({})
+  const interviewKey = `${carExport.purpose}:${effectiveTopicId(carExport)}`
+  const answers = answerSets[interviewKey] || {}
+  function setAnswers(value) { setAnswerSets(current => ({ ...current, [interviewKey]: value })) }
+  function updatePlan(key, value) {
+    setCarExport(current => ({ ...current, [key]: value }))
+    setResult(null)
+    setCopied(false)
+    setError('')
+  }
   const [resetVersion, setResetVersion] = useState(0)
-  const [industryChoice, setIndustryChoice] = useState('기타·직접 입력')
   const [form, setForm] = useState(initialForm)
   const [reviewAnswers, setReviewAnswers] = useState({})
   const [reviewHistory, setReviewHistory] = useState([])
@@ -37,7 +46,7 @@ function App() {
   const photoUrls = useRef(new Set())
   useEffect(() => () => photoUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
 
-  const inputSnapshot = JSON.stringify({ form, answers })
+  const inputSnapshot = JSON.stringify({ form, answers, carExport })
   const activePreparation = preparation?.snapshot === inputSnapshot ? preparation : null
   function preparationResponses() {
     return activePreparation ? activePreparation.questions.map((item, i) => ({ question: item.question, answer: (preparationAnswers[i] || '').trim() })).filter(item => item.answer) : []
@@ -52,7 +61,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, action: 'prepare', interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, carExport, action: 'prepare', interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -71,8 +80,8 @@ function App() {
     photoUrls.current.clear()
     nextPhotoId.current = 1
     setForm({ ...initialForm })
-    setIndustryChoice('기타·직접 입력')
-    setAnswers({})
+    setCarExport(initialCarExport())
+    setAnswerSets({})
     setPhotos([])
     setPlaced({})
     setResult(null)
@@ -124,7 +133,6 @@ function App() {
 
   function updateField(event) {
     const { name, value } = event.target
-    if (name === 'industry' && profileFor(value)?.name !== profileFor(form.industry)?.name) setAnswers({})
     setForm((current) => ({ ...current, [name]: value }))
     setResult(null)
     setCopied(false)
@@ -147,7 +155,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, preparationAnswers: preparationResponses(), ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, carExport, preparationAnswers: preparationResponses(), ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -185,7 +193,7 @@ function App() {
         </a>
         <div className="topbar-meta">
           <span className="status-dot" />
-          <span>콘텐츠 스튜디오</span>
+          <span>중고차 수출 콘텐츠 스튜디오</span>
           <span className="topbar-divider" />
           <span className="demo-label">AI</span>
         </div>
@@ -194,8 +202,8 @@ function App() {
       <section className="intro" id="top">
         <div className="intro-copy">
           <p className="eyebrow"><span>01</span> BLOG CONTENT STUDIO</p>
-          <h1>좋은 이야기는<br /><em>가게의 힘</em>이 됩니다.</h1>
-          <p className="intro-description">업체의 고유한 이야기를 담아 블로그 글 초안을 만들어 보세요.<br className="desktop-break" /> 필요한 정보를 적으면 게시 전 다듬을 수 있는 예시 글을 준비합니다.</p>
+          <h1>차주의 궁금증을<br /><em>믿을 수 있는 글</em>로.</h1>
+          <p className="intro-description">중고차 수출 업체의 실제 정보로 차주에게 도움이 되는 글을 만듭니다.<br className="desktop-break" /> 견적·감가·대금·탁송·말소 중 이번 글의 주제를 선택하세요.</p>
         </div>
         <div className="intro-aside" aria-label="현재 단계">
           <span className="aside-index">YOUR STORY,</span>
@@ -215,7 +223,7 @@ function App() {
           <div className="section-heading">
             <div>
               <p className="section-kicker">STEP 01 <span>/</span> INFORMATION</p>
-              <h2 id="form-title">업체 이야기 들려주기</h2>
+              <h2 id="form-title">중고차 수출 글 준비하기</h2>
             </div>
             <span className="required-note"><i>*</i> 필수 입력</span>
           </div>
@@ -229,35 +237,37 @@ function App() {
             <div className="field-grid">
               <label className="field">
                 <span className="field-label">업체명 <i>*</i></span>
-                <input name="business" value={form.business} onChange={updateField} placeholder="예: 다정한 베이커리" required />
+                <input name="business" value={form.business} onChange={updateField} placeholder="공개할 중고차 수출 업체명" required />
               </label>
               <label className="field">
                 <span className="field-label">업종 <i>*</i></span>
-                <select aria-label="업종 선택" value={industryChoice} onChange={event => {
-                  const value = event.target.value
-                  setIndustryChoice(value)
-                  setForm(current => ({ ...current, industry: value === '기타·직접 입력' ? '' : value }))
-                  setAnswers({})
-                  setResult(null)
-                }}>{industryOptions.map(option => <option key={option}>{option}</option>)}</select>
-                {industryChoice === '기타·직접 입력' && <input name="industry" value={form.industry} onChange={updateField} placeholder="실제 업종을 자유롭게 입력" required />}
+                <input name="industry" value="중고차 수출" readOnly aria-label="업종" />
               </label>
               <label className="field">
                 <span className="field-label">영업 지역 <i>*</i></span>
-                <input name="region" value={form.region} onChange={updateField} placeholder="예: 서울 성수동" required />
+                <input name="region" value={form.region} onChange={updateField} placeholder="실제 사업장 또는 상담 가능한 지역" required />
               </label>
               <label className="field">
-                <span className="field-label">주요 상품 또는 서비스 <i>*</i></span>
-                <input name="offering" value={form.offering} onChange={updateField} placeholder="예: 매일 굽는 사워도우" required />
+                <span className="field-label">실제로 제공하는 서비스 <i>*</i></span>
+                <input name="offering" value={form.offering} onChange={updateField} placeholder="수출 견적·차량 매입·탁송 등 실제 제공 범위만 입력" required />
               </label>
               <label className="field field-wide">
                 <span className="field-label">추가 소개 문구 (선택·글에 반영)</span>
-                <textarea name="difference" value={form.difference} onChange={updateField} placeholder="예: 국내산 밀을 사용하고 매일 아침 직접 반죽해요" rows="3" />
+                <textarea name="difference" value={form.difference} onChange={updateField} placeholder="취급 차량·현장 확인 방식·차주에게 꼭 알려줄 실제 업체 정보" rows="3" />
               </label>
             </div>
 
-            <Interview key={`${resetVersion}-${profileFor(form.industry)?.name || 'other'}`} industry={form.industry} answers={answers} disabled={loading} onChange={value => { setAnswers(value); setResult(null); setCopied(false) }} />
-            <p className="form-footnote">업종을 선택 목록에서 바꾸면 이전 업종의 답변을 지웁니다. 입력한 답변·업체 정보는 생성 시 OpenAI로 전송됩니다. 새로고침 전에 필요한 내용은 보관해 주세요.</p>
+            <fieldset className="car-plan" disabled={loading}>
+              <legend>이번에는 어떤 글을 만들까요?</legend>
+              <label className="field"><span>글 종류</span><select value={carExport.purpose} onChange={event => updatePlan('purpose', event.target.value)}>{articlePurposes.map(purpose => <option value={purpose.id} key={purpose.id}>{purpose.label}</option>)}</select></label>
+              {!['intro', 'comparison'].includes(carExport.purpose) && <label className="field"><span>이번 글에서 해결할 차주의 궁금증</span><select value={carExport.topicId} onChange={event => updatePlan('topicId', event.target.value)}>{exportTopics.map(topic => <option value={topic.id} key={topic.id}>{topic.label}</option>)}</select></label>}
+              <p className="interview-hint">글 종류·주제별 답변을 이 화면에서 따로 보관합니다. 이전 주제로 돌아가면 적었던 답변이 다시 표시됩니다. 새로고침하면 사라집니다.</p>
+              {carExport.purpose === 'case' && <section><h3>실제로 맡았던 차량 한 대 (아는 내용만 입력)</h3><p>없으면 비워 두세요. 견적 단계·진행 중인 사례도 적을 수 있습니다. 차량번호·차주 이름·주민번호는 적지 마세요.</p>
+                <div className="field-grid">{vehicleFields.map(field => <label className={`field ${field.max > 100 ? 'field-wide' : ''}`} key={field.id}><span>{field.label}</span>{field.max > 100 ? <textarea rows={3} value={carExport.vehicle[field.id] || ''} maxLength={field.max} placeholder="직접 확인한 내용만 입력" onChange={event => updatePlan('vehicle', { ...carExport.vehicle, [field.id]: event.target.value })} /> : <input value={carExport.vehicle[field.id] || ''} maxLength={field.max} placeholder="직접 확인한 내용만 입력" onChange={event => updatePlan('vehicle', { ...carExport.vehicle, [field.id]: event.target.value })} />}</label>)}</div>
+              </section>}
+            </fieldset>
+            <Interview key={`${resetVersion}-${interviewKey}`} plan={carExport} answers={answers} disabled={loading} onChange={value => { setAnswers(value); setResult(null); setCopied(false) }} />
+            <p className="form-footnote">입력한 업체·차량 정보와 사용할 답변은 생성 시 OpenAI로 전송됩니다. 인터넷 검색은 하지 않습니다. 필요한 내용은 새로고침 전에 보관해 주세요.</p>
             <fieldset className="platform-field">
               <legend className="field-label">블로그 플랫폼 <i>*</i></legend>
               <div className="platform-options">
@@ -289,10 +299,10 @@ function App() {
                   <div className="photo-details">
                     <strong>사진 {photoNumber(photo.id)}</strong>
                     <label>사진 아래에 표시할 설명
-                      <input value={photo.description} maxLength={120} placeholder="예: 작업 전 벽면 상태 — 균열 부위를 확인하는 사진" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
+                      <input value={photo.description} maxLength={120} placeholder="외관·운전석·계기판 등 실제 사진 내용을 설명" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
                     </label>
                     <small>{photoFilename(photo)}</small>
-                    {(!photo.description.trim() || /^\d+$/.test(photo.description.trim())) && <p className="interview-hint">숫자 대신 무엇을 보여주는 사진인지 적어주세요. 예: 매장 입구, 작업 전 벽면. 이번 버전은 사진 내용을 AI가 분석하지 않습니다.</p>}
+                    {(!photo.description.trim() || /^\d+$/.test(photo.description.trim())) && <p className="interview-hint">숫자 대신 무엇을 보여주는 사진인지 적어주세요. 차량 외관·계기판 등 실제 보이는 내용을 적고 차량번호는 가려주세요. 이번 버전은 사진 내용을 AI가 분석하지 않습니다.</p>}
                     <div className="photo-actions">
                       <button type="button" disabled={loading || index === 0} onClick={() => movePhoto(index, -1)} aria-label={`사진 ${photoNumber(photo.id)} 앞으로`}>앞으로</button>
                       <button type="button" disabled={loading || index === photos.length - 1} onClick={() => movePhoto(index, 1)} aria-label={`사진 ${photoNumber(photo.id)} 뒤로`}>뒤로</button>
@@ -312,7 +322,7 @@ function App() {
             {activePreparation && <section className="preparation-panel" aria-live="polite">
               <h3>입력하신 정보를 이렇게 모았어요</h3>
               <p>직접 입력하고 사용하도록 확인한 자료입니다. 인터넷 검증 결과가 아닙니다.</p>
-              <details open><summary>글에 사용할 자료 보기</summary>{activePreparation.summary.map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개', audience: '대상 고객', question: '글의 핵심 질문', answer: '업체 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '연락 방법', source: '출처·확인 시점' })[item.id] || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong><br />{item.text}</p>)}</details>
+              <details open><summary>글에 사용할 자료 보기</summary>{activePreparation.summary.map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개', audience: '대상 고객', question: '글의 핵심 질문', answer: '업체 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '연락 방법', source: '출처·확인 시점' })[item.id] || carEvidenceLabel(item.id) || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong><br />{item.text}</p>)}</details>
               <h3>글을 쓰기 전에 이것만 알려주세요</h3>
               {activePreparation.questions.length === 0 && <p>추가 질문이 없습니다. 아래에서 글을 작성할 수 있습니다.</p>}
               {activePreparation.questions.map((item, i) => <div key={i}>
@@ -371,7 +381,7 @@ function App() {
                 {(result.changeSummary || []).length > 0 && <div><h4>이번에 바뀐 부분</h4><ul>{result.changeSummary.map((note, i) => <li key={i}>{note}</li>)}</ul></div>}
                 <h4>점검 안내</h4>
                 <ul>{(result.reviewNotes || []).map((note, i) => <li key={i}>{note}</li>)}</ul>
-                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
+                <details><summary>입력한 답변이 반영된 위치</summary>{(result.coverage || []).map(item => <p key={item.id}><strong>{({ business: '업체명', industry: '업종', region: '지역', offering: '상품·서비스', difference: '추가 소개 문구', audience: '대상 고객', question: '핵심 질문', answer: '실제 답변', process: '진행 과정', conditions: '비용·조건', case: '실제 사례', contact: '상담 안내', source: '정보 출처·확인 시점' })[item.id] || carEvidenceLabel(item.id) || (item.id.startsWith('preparation_') ? '작성 전 추가 답변' : item.id.startsWith('review_') ? '게시 전 추가 답변' : item.id)}</strong>: {item.text}<br />{item.sections.length ? `AI가 연결한 본문 섹션: ${item.sections.join(', ')}` : '반영 위치 없음 — 내용에 필요한 답변인지 검토하세요.'}</p>)}</details>
                 <p>사진 안내·파일명 문구를 지우고 사진을 직접 첨부하세요. 가격·조건·사례는 게시 전 원자료와 대조해 주세요.</p>
               </section>
               <div className="export-actions">
@@ -397,7 +407,7 @@ function App() {
       </div>
 
       <footer className="footer">
-        <span>글결 <span className="footer-separator">/</span> 블로그 콘텐츠 스튜디오</span>
+        <span>글결 <span className="footer-separator">/</span> 중고차 수출 콘텐츠 스튜디오</span>
         <span>초안은 게시 전 직접 확인해 주세요.</span>
       </footer>
     </main>

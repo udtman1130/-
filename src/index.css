@@ -200,3 +200,8 @@ button { color: inherit; }
 .preparation-panel h3 { margin: 12px 0; font-size: 18px; }
 .preparation-panel p { overflow-wrap: anywhere; white-space: pre-wrap; }
 .preparation-panel + .generate-button { margin-top: 14px; }
+
+.car-plan { margin: 24px 0; padding: 18px; border: 1px solid #cbd2c3; border-radius: 12px; background: #fafbf7; }
+.car-plan legend { padding: 0 6px; font-weight: 700; }
+.car-plan .field { margin-bottom: 12px; }
+.car-plan p { font-size: 13px; line-height: 1.8; }
