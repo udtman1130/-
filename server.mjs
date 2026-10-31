@@ -58,7 +58,20 @@ export function createGenerateHandler({ env = process.env, fetchImpl = fetch } =
         if (typeof form.previousDraft?.title !== 'string' || form.previousDraft.title.length > 500 || typeof form.previousDraft.body !== 'string' || form.previousDraft.body.length > 15000) return send(400, { error: '수정할 초안 형식을 확인해 주세요.' })
         clean.previousDraft = { title: form.previousDraft.title, body: form.previousDraft.body }
       }
+      if (form.photoDescriptions != null) {
+        if (!Array.isArray(form.photoDescriptions) || form.photoDescriptions.length > 10 ||
+          form.photoDescriptions.some(photo => typeof photo?.number !== 'string' || !/^\\d{2,3}$/.test(photo.number) || typeof photo?.description !== 'string' || photo.description.length > 600 ||
+            !Number.isInteger(photo.order) || photo.order < 1 || photo.order > 10)) return send(400, { error: '사진 설명은 최대 10개, 각 600자 이내로 입력해 주세요.' })
+        const used = new Set()
+        for (const photo of form.photoDescriptions) {
+          if (!photo.description.trim()) continue
+          if (used.has(photo.number)) return send(400, { error: '사진 번호가 중복되었습니다.' })
+          used.add(photo.number)
+          evidence.push({ id: 'photo_' + photo.number, text: '사진 ' + photo.number + ' 설명: ' + photo.description.trim(), question: '업체가 직접 제공한 사진 상황 설명', origin: '사용자 제공 사진 설명·사진 내용 자체는 AI 미확인' })
+        }
+      }
       clean.evidence = evidence
+      clean.photoWritingGuide = 'photo_ ID의 입력은 고객이 제공한 사진 설명이다. 설명에 포함된 확인 가능한 사실을 관련 본문 섹션에 자연스럽게 반영하고, 해당 섹션 evidenceIds에 photo_ ID를 연결한다. 사진을 직접 보거나 분석했다고 주장하지 말고, 사진 설명에 없는 작업 실적이나 상태를 추측하지 마라. 사진 01 같은 번호를 글에 반드시 나열할 필요는 없으며, 관련 문단에 사진이 연결되도록 설명 내용과 주제를 분명하게 작성하라.'
       clean.writingGuide = { targetCharacters: '공백 포함 본문 2000~2500자, 제목·사진 설명 제외', structure: '도입 → 핵심 설명 3~4개 → 확인 목록 → 문의 안내', detail: '각 핵심 설명은 결론·이유·확인 방법·예외 조건으로 풀어 쓴다. 사례는 확인된 case가 있을 때만 작성한다. evidence의 question은 업종별 입력 질문이다. answer를 그 질문에 맞게 해석하고 source에 제공된 출처·확인 날짜만 사용한다. 출처 미입력을 이유로 사용자 정보를 삭제하지 않는다.' }
       if (clean.carExport) Object.assign(clean.writingGuide, carWritingGuide(clean.carExport))
       if (busy || calls >= 20) return send(429, { error: '다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.' })
@@ -127,54 +140,12 @@ export function createGenerateHandler({ env = process.env, fetchImpl = fetch } =
   }
 }
 
-export function createPhotoAnalysisHandler({ env = process.env, fetchImpl = fetch } = {}) {
- return async function analyzePhoto(req,res) {
-  const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data))}
-  if(req.method!=='POST')return send(405,{error:'POST 요청만 가능합니다.'})
-  if(!env.OPENAI_API_KEY||!env.APP_ACCESS_CODE)return send(503,{error:'서버 API 키와 이용 암호가 필요합니다.'})
-  const expected=Buffer.from('Bearer '+env.APP_ACCESS_CODE),actual=Buffer.from(req.headers.authorization||'')
-  if(expected.length!==actual.length||!timingSafeEqual(expected,actual))return send(401,{error:'앱 이용 암호를 확인해 주세요.'})
-  if(!(req.headers['content-type']||'').startsWith('application/json'))return send(415,{error:'JSON 형식만 가능합니다.'})
-  try {
-   let raw=''
-   for await(const part of req){
-    raw+=part
-    if(Buffer.byteLength(raw)>15*1024*1024)return send(413,{error:'사진이 너무 큽니다. 작은 사진을 선택해 주세요.'})
-   }
-   let value
-   try{value=JSON.parse(raw)}catch{return send(400,{error:'요청 형식이 잘못되었습니다.'})}
-   if(typeof value?.image!=='string'||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.image))return send(400,{error:'JPG, PNG, WebP 사진만 분석할 수 있습니다.'})
-   if(value.image.length>14*1024*1024)return send(413,{error:'사진 용량을 줄여주세요.'})
-   const context=typeof value.context==='string'?value.context.slice(0,500):''
-   const response=await fetchImpl('https://api.openai.com/v1/responses',{
-    method:'POST',
-    headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
-    signal:AbortSignal.timeout(60000),
-    body:JSON.stringify({
-     model:env.OPENAI_MODEL||'gpt-4.1-mini',store:false,max_output_tokens:220,
-     instructions:'당신은 한국 소상공인 블로그 사진 설명 도우미다. 실제 사진에서 눈으로 확인할 수 있는 대상과 상황만 1~2문장, 70자 이내 한국어로 설명하라. 업체가 직접 촬영했는지, 작업 결과, 위치, 소유권 등 사진으로 알 수 없는 사항은 단정하지 말라. 광고 문구나 허위 사실을 쓰지 마라. 설명 텍스트만 반환하라.',
-     input:[{role:'user',content:[{type:'input_text',text:'업체 참고정보: '+context+' / 사진을 설명해 주세요.'},{type:'input_image',image_url:value.image,detail:'low'}]}]
-    })
-   })
-   if(!response.ok)return send(502,{error:'AI 사진 분석에 실패했습니다. API 결제 상태와 모델 설정을 확인해 주세요.'})
-   const payload=await response.json()
-   if(payload.status!=='completed')return send(502,{error:'사진 분석을 완료하지 못했습니다.'})
-   const description=(payload.output||[]).flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('').trim().slice(0,120)
-   if(!description)return send(502,{error:'사진 설명을 받지 못했습니다.'})
-   return send(200,{description})
-  }catch{return send(502,{error:'사진 분석 중 연결 문제가 발생했습니다.'})}
- }
-}
-
-
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { createServer } = await import('vite')
   const vite = await createServer({ server: { middlewareMode: true }, appType: 'spa' })
   const generate = createGenerateHandler()
-  const analyzePhoto = createPhotoAnalysisHandler()
   http.createServer((req, res) => {
     if (req.url?.split('?')[0] === '/api/generate') return generate(req, res)
-    if (req.url?.split('?')[0] === '/api/analyze-photo') return analyzePhoto(req, res)
     vite.middlewares(req, res)
   }).listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log('앱 실행: http://localhost:3000'))
 }
