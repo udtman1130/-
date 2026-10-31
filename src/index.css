@@ -108,7 +108,10 @@ button { color: inherit; }
 .draft-label { margin: 0 0 8px; color: #8c9389; font-family: 'DM Mono', monospace; font-size: 9px; }
 .draft-content h3 { margin: 0; color: #303b32; font-family: 'Gowun Batang', serif; font-size: 17px; font-weight: 700; line-height: 1.6; }
 .draft-divider { height: 1px; margin: 18px 0 16px; background: #e8e8e1; }
-.draft-body { color: #555d55; font-size: 11px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.draft-body { color: #303630; font-size: 18px; line-height: 1.85; white-space: normal; overflow-wrap: anywhere; }
+.draft-body .draft-paragraph p { margin: 0 0 18px; font-size: 18px; line-height: 1.85; }
+.draft-body .draft-paragraph h3 { margin: 34px 0 16px; padding: 3px 0 3px 13px; border-left: 4px solid #3e7650; font-family: inherit; font-size: 22px; font-weight: 700; line-height: 1.5; color: #172a1c; white-space: normal; }
+.draft-content > h3 { font-family: inherit; font-size: 26px; font-weight: 700; line-height: 1.45; color: #1b2c20; }
 .copy-button { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 43px; margin-top: 13px; border: 1px solid #b9c6b9; background: #f7f9f4; color: #395842; cursor: pointer; font-size: 11px; font-weight: 600; transition: background .18s; }
 .copy-button:hover { background: #edf3eb; }
 .copy-icon { font-size: 15px; }
