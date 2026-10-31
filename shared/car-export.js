@@ -45,7 +45,15 @@ export function questionsForExport(plan = initialCarExport()) {
   const questions = []
   if (topic.id === 'custom' && !['intro', 'comparison'].includes(purpose)) questions.push({ id: 'question', title: '손님들이 가장 많이 물어보는 것은 무엇인가요?', hint: '이번 글에서 한 가지 궁금증을 해결한다고 생각해 주세요.', options: [] })
   questions.push({ id: 'answer', title: '손님이 그렇게 물어보면 평소 어떻게 설명하시나요?', hint: purpose === 'intro' ? '취급 차량·상담 범위·방문 가능 지역 등 실제 내용을 적으세요.' : purpose === 'comparison' ? '확인한 차이와 각각 유리하거나 어려운 조건만 적으세요.' : topic.hint, options: [] })
-  questions.push({ id: 'conditions', title: '손님들이 미리 알아두면 좋은 점이 있나요?', hint: '실제 조건만 적으세요. 모르면 건너뛰어도 됩니다.', options: [] })
+  const conditionChoices = {
+    quote: ['외관 손상', '사고 이력', '주행거리', '고장·작동 상태', '차량 옵션', '기타'],
+    damage: ['외관 손상', '사고 이력', '시동 불가', '부품 고장', '기타'],
+    mileage: ['주행거리', '차량 연식', '차량 상태', '차종', '기타'],
+    transport: ['탁송 거리', '탁송 비용', '인수 장소', '취소 조건', '기타'],
+    payment: ['지급 시점', '입금 확인', '인수 순서', '기타'],
+    documents: ['소유 형태', '차량 서류', '확인 절차', '기타'],
+  }
+  questions.push({ id: 'conditions', title: '손님들이 미리 알아두면 좋은 점이 있나요?', hint: '해당하는 항목을 누르고 실제 사례가 있으면 한 줄 더 적어주세요. 선택한 내용만 사실로 사용합니다.', options: conditionChoices[topic.id] || ['가격·비용', '차량 상태', '진행 조건', '기타'] })
   questions.push({ id: 'process', title: purpose === 'intro' || purpose === 'comparison' ? '차량 상담부터 진행 여부를 정하기까지 어떤 순서인가요?' : topic.process, hint: '실제 순서와 차주가 확인할 부분을 짧게 적으세요.', options: [] })
   if (purpose === 'case') questions.push({ id: 'case', title: '최근 상담하거나 매입한 차량 중 소개할 만한 일이 있었나요?', hint: '위에 적은 차량을 확인한 과정과 현재 결과를 적으세요. 거래 전이면 거래 전이라고 적고, 실제 사례가 없으면 건너뛰세요.', options: [] })
   questions.push({ id: 'contact', title: '손님이 견적을 물어볼 때 어떤 정보를 알려주면 되나요?', hint: '공개할 연락처·상담 링크와 차종·연식·주행거리·사진 등 필요한 자료를 적으세요. 실제로 요구하는 자료만 적으세요.', options: [] })
