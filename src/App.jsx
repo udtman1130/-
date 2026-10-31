@@ -356,7 +356,7 @@ function App() {
                 <p className="draft-label">제목</p>
                 <h3>{cleanText(result.title)}</h3>
                 <div className="draft-divider" />
-                <p className="draft-label">본문 · {result.characterCount ?? Array.from(result.body).length}자 / 목표 2,000~2,500자</p>
+                <p className="draft-label">본문 · {result.characterCount ?? Array.from(result.body).length}자 / 목표 {result.targetCharacters?.min?.toLocaleString('ko-KR') ?? '2,500'}~{result.targetCharacters?.max?.toLocaleString('ko-KR') ?? '3,500'}자</p>
                 <p className="form-footnote">공백 포함, 제목·사진 설명 제외. 자료가 부족하면 사실을 만들지 않고 보완할 내용을 안내합니다.</p>
                 <div className="draft-body">{blocks.map((block, index) => block.type === 'text'
                   ? <div key={index} className="draft-paragraph">{cleanText(block.text).split('\n').map((line, lineIndex) => (result.sections || []).some(section => cleanText(section.heading) === line)
