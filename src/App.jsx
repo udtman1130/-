@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { photoNumber, photoFilename, buildPhotoDraft, draftText } from './photos'
+import { photoNumber, photoFilename, buildPhotoDraft, draftText, headingText, draftHtml } from './photos'
 
 const initialForm = {
   business: '',
@@ -92,8 +92,19 @@ function App() {
   async function handleCopy() {
     if (!result) return
     try {
-      await navigator.clipboard.writeText(`${result.title}\n\n${draftText(blocks)}`)
-      setCopied(true)
+      const plain = result.title + '\n\n' + draftText(blocks)
+      if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        const html = draftHtml(result.title, blocks)
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plain], { type: 'text/plain' }),
+        })])
+        setCopied(true)
+      } else {
+        await navigator.clipboard.writeText(plain)
+        setCopied(false)
+        setError('서식 복사가 지원되지 않아 일반 글자만 복사되었습니다. 최신 Chrome에서 다시 시도해 주세요.')
+      }
     } catch { setError('복사하지 못했습니다. 본문을 직접 선택해 복사해 주세요.') }
   }
 
@@ -240,7 +251,9 @@ function App() {
                 <div className="draft-divider" />
                 <p className="draft-label">본문</p>
                 <div className="draft-body">{blocks.map((block, index) => block.type === 'text'
-                  ? <div key={index} className="draft-paragraph">{block.text}</div>
+                  ? (headingText(block.text)
+                    ? <h4 key={index} className="draft-subheading">{headingText(block.text)}</h4>
+                    : <div key={index} className="draft-paragraph">{block.text}</div>)
                   : <div key={index} className="photo-placeholder">
                     <img src={block.photo.url} alt={block.photo.description || `사진 ${photoNumber(block.photo.id)}`} />
                     <div><strong>[사진 {photoNumber(block.photo.id)} 넣는 곳 — {block.photo.description.trim() || '설명 없음'}]</strong>
