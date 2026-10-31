@@ -387,10 +387,10 @@ function App() {
               <div className="export-actions">
                 <button type="button" onClick={() => handleCopy('title')}>제목 복사</button>
                 <button type="button" onClick={() => handleCopy('text')}>일반 본문 복사</button>
-                {result.platformName === '네이버 블로그' ? <button type="button" onClick={() => handleCopy('rich')}>네이버 서식 포함 복사</button> : <button type="button" onClick={() => handleCopy('html')}>티스토리 HTML 복사</button>}
+                {result.platformName === '네이버 블로그' ? <button type="button" onClick={() => handleCopy('rich')}>네이버 서식 포함 복사</button> : <><button type="button" onClick={() => handleCopy('rich')}>티스토리 서식 포함 복사 (기본모드)</button><button type="button" onClick={() => handleCopy('html')}>티스토리 HTML 복사 (HTML모드)</button></>}
               </div>
               {copied && <p role="status">복사 완료 — 제목은 제목 칸에, 본문은 본문 칸에 붙여넣으세요.</p>}
-              <p className="form-footnote">서식 복사는 실제 편집기·스킨에 따라 달라질 수 있습니다. 티스토리 HTML은 HTML 모드에 붙여넣으세요. 복사 내용에는 사진 삽입 안내가 포함되며 실제 이미지는 포함되지 않습니다.</p>
+              <p className="form-footnote">서식 포함 복사는 기본모드에, HTML 복사는 HTML 모드에 붙여넣으세요. 편집기·스킨에 따라 일부 서식이 달라질 수 있습니다. 복사 내용에는 사진 삽입 안내가 포함되며 실제 이미지는 포함되지 않습니다.</p>
             </>
           ) : (
             <div className="empty-state">
