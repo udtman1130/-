@@ -4,9 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "node --env-file-if-exists=.env server.mjs",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -15,5 +17,8 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.4.1",
     "vite": "^6.1.0"
+  },
+  "engines": {
+    "node": ">=22.9.0"
   }
 }

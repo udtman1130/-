@@ -106,9 +106,10 @@ button { color: inherit; }
 .empty-index { color: #a0a69d; font-size: 8px; }
 .draft-content { flex: 1; overflow: auto; max-height: 455px; margin-top: 24px; padding: 20px 19px; border: 1px solid #e2e2da; background: #fffefa; white-space: pre-wrap; }
 .draft-label { margin: 0 0 8px; color: #8c9389; font-family: 'DM Mono', monospace; font-size: 9px; }
-.draft-content h3 { margin: 0; color: #303b32; font-family: 'Gowun Batang', serif; font-size: 17px; font-weight: 700; line-height: 1.6; }
+.draft-content h3 { margin: 0; color: #303b32; font-family: 'Gowun Batang', serif; font-size: 26px; font-weight: 700; line-height: 1.6; }
 .draft-divider { height: 1px; margin: 18px 0 16px; background: #e8e8e1; }
-.draft-body { color: #555d55; font-size: 11px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.draft-body { color: #555d55; font-size: 18px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.draft-subheading { font-size: 22px; font-weight: 700; line-height: 1.5; margin: 24px 0 12px; color: #303b32; }
 .copy-button { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 43px; margin-top: 13px; border: 1px solid #b9c6b9; background: #f7f9f4; color: #395842; cursor: pointer; font-size: 11px; font-weight: 600; transition: background .18s; }
 .copy-button:hover { background: #edf3eb; }
 .copy-icon { font-size: 15px; }
@@ -160,3 +161,24 @@ button { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+.error-message { color: #9d2020; background: #fff0ef; padding: 12px; border-radius: 8px; }
+.generate-button:disabled { opacity: .65; cursor: wait; }
+
+.photo-section { margin: 28px 0; padding: 20px 0; border-top: 1px solid #ddd; }
+.photo-section p, .photo-review { font-size: 13px; line-height: 1.7; color: #666; }
+.photo-list { list-style: none; padding: 0; }
+.photo-card { display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid #ddd; }
+.photo-card img { width: 88px; height: 88px; object-fit: cover; border-radius: 8px; }
+.photo-details { min-width: 0; flex: 1; }
+.photo-details label { display: grid; gap: 6px; margin: 8px 0; font-size: 13px; }
+.photo-details input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+.photo-details small { overflow-wrap: anywhere; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 13px; }
+.photo-actions button { padding: 3px 6px; cursor: pointer; }
+.photo-actions button:disabled { opacity: .4; cursor: default; }
+.photo-placeholder { display: flex; align-items: center; gap: 12px; padding: 16px; margin: 20px 0; background: #f1f4ee; border: 1px dashed #889878; border-radius: 8px; white-space: normal; }
+.photo-placeholder img { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; }
+.photo-placeholder p { font-size: 12px; overflow-wrap: anywhere; }
+.photo-placeholder label { font-size: 13px; }
+.draft-paragraph { margin-bottom: 20px; }
+@media (max-width: 480px) { .photo-card img { width: 60px; height: 60px; } .photo-placeholder { flex-direction: column; align-items: flex-start; } }

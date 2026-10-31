@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { photoNumber, photoFilename, buildPhotoDraft, draftText, headingText, draftHtml } from './photos'
 
 const initialForm = {
   business: '',
@@ -9,34 +10,132 @@ const initialForm = {
   platform: 'naver',
 }
 
-function makeDraft(form) {
-  const platformName = form.platform === 'naver' ? '네이버 블로그' : '티스토리'
-  const title = `${form.region} ${form.industry} 찾는다면? ${form.business}의 ${form.offering}`
-  const body = `${form.business}는 ${form.region}에서 ${form.offering}을(를) 소개하는 ${form.industry} 업체입니다.\n\n${form.industry}를 알아볼 때는 내 상황에 맞는 서비스인지, 어떤 점을 꼼꼼히 살펴보는지가 중요합니다. ${form.business}는 ${form.difference}을(를) 바탕으로 한 분 한 분에게 필요한 선택지를 안내해 드리고 있습니다.\n\n## ${form.business}가 전하는 이야기\n\n처음 방문하시는 분도 편하게 상담하실 수 있도록 서비스 과정과 궁금한 점을 차근차근 설명해 드립니다. ${form.region}에서 ${form.offering}을(를) 찾고 계시다면 현재 필요한 내용부터 함께 확인해 보세요.\n\n## 이런 분께 소개합니다\n\n- ${form.region}에서 ${form.industry} 관련 정보를 찾고 계신 분\n- ${form.offering}의 진행 방식이 궁금하신 분\n- ${form.difference}을(를) 중요하게 생각하시는 분\n\n## 상담 안내\n\n서비스 내용과 일정은 상황에 따라 달라질 수 있습니다. 자세한 사항은 ${form.business}에 문의해 확인해 주세요.\n\n※ 이 글은 입력한 정보를 바탕으로 만든 데모 초안입니다. 게시 전 사실관계와 업체 정보를 확인하고 자연스럽게 다듬어 주세요.\n\n#${form.region.replaceAll(' ', '')} #${form.industry.replaceAll(' ', '')} #${form.offering.replaceAll(' ', '')} #${form.business.replaceAll(' ', '')}`
-
-  return { title, body, platformName }
-}
-
 function App() {
   const [form, setForm] = useState(initialForm)
   const [result, setResult] = useState(null)
   const [copied, setCopied] = useState(false)
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [accessCode, setAccessCode] = useState('')
+
+  const [photos, setPhotos] = useState([])
+  const [analyzingPhoto, setAnalyzingPhoto] = useState(null)
+  const [placed, setPlaced] = useState({})
+  const nextPhotoId = useRef(1)
+  const photoUrls = useRef(new Set())
+  useEffect(() => () => photoUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
+
+  function addPhotos(event) {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (files.some(file => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024)) {
+      setError('JPG·PNG·WebP 사진만 넣어주세요. 사진 한 장은 10MB 이하여야 합니다.')
+      return
+    }
+    if (photos.length + files.length > 10) { setError('사진은 최대 10장까지 넣을 수 있어요.'); return }
+    const additions = files.map(file => {
+      const url = URL.createObjectURL(file)
+      photoUrls.current.add(url)
+      return { id: nextPhotoId.current++, file, url, description: '' }
+    })
+    setPhotos(current => [...current, ...additions])
+    setError('')
+  }
+
+
+  async function analyzePhoto(photo) {
+    if (analyzingPhoto !== null) return
+    setAnalyzingPhoto(photo.id)
+    setError('')
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(new Error('사진을 읽을 수 없습니다.'))
+        reader.readAsDataURL(photo.file)
+      })
+      const response = await fetch('/api/analyze-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessCode },
+        body: JSON.stringify({ image, context: [form.industry, form.offering].filter(Boolean).join(' / ') }),
+        signal: AbortSignal.timeout(70000),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || '사진 분석에 실패했습니다.')
+      setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: payload.description } : item))
+      setCopied(false)
+    } catch (err) {
+      setError(err.message || '사진 분석에 실패했습니다.')
+    } finally {
+      setAnalyzingPhoto(null)
+    }
+  }
+
+  function movePhoto(index, direction) {
+    setPhotos(current => {
+      const copy = [...current]
+      ;[copy[index], copy[index + direction]] = [copy[index + direction], copy[index]]
+      return copy
+    })
+    setCopied(false)
+  }
+
+  function removePhoto(photo) {
+    URL.revokeObjectURL(photo.url)
+    photoUrls.current.delete(photo.url)
+    setPhotos(current => current.filter(item => item.id !== photo.id))
+    setCopied(false)
+  }
+
+  const blocks = result ? buildPhotoDraft(result.body, photos) : []
 
   function updateField(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
   }
 
-  function handleGenerate(event) {
+  async function handleGenerate(event) {
     event.preventDefault()
-    setResult(makeDraft(form))
+    if (loading) return
+    setLoading(true)
+    setError('')
+    setResult(null)
     setCopied(false)
+    setPlaced({})
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
+        body: JSON.stringify(form),
+        signal: AbortSignal.timeout(70000),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || '서버 연결을 확인해 주세요.')
+      if (!data?.title || !data?.body) throw new Error('생성 결과가 올바르지 않습니다.')
+      setResult(data)
+    } catch (error) {
+      setError(['TimeoutError', 'AbortError'].includes(error.name) ? '시간이 초과됐습니다. 다시 시도해 주세요.' : error.message)
+    } finally { setLoading(false) }
   }
 
   async function handleCopy() {
     if (!result) return
-    await navigator.clipboard.writeText(`${result.title}\n\n${result.body}`)
-    setCopied(true)
+    try {
+      const plain = result.title + '\n\n' + draftText(blocks)
+      if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        const html = draftHtml(result.title, blocks)
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plain], { type: 'text/plain' }),
+        })])
+        setCopied(true)
+      } else {
+        await navigator.clipboard.writeText(plain)
+        setCopied(false)
+        setError('서식 복사가 지원되지 않아 일반 글자만 복사되었습니다. 최신 Chrome에서 다시 시도해 주세요.')
+      }
+    } catch { setError('복사하지 못했습니다. 본문을 직접 선택해 복사해 주세요.') }
   }
 
   return (
@@ -50,7 +149,7 @@ function App() {
           <span className="status-dot" />
           <span>콘텐츠 스튜디오</span>
           <span className="topbar-divider" />
-          <span className="demo-label">DEMO</span>
+          <span className="demo-label">AI</span>
         </div>
       </header>
 
@@ -70,7 +169,7 @@ function App() {
 
       <div className="demo-notice" role="note">
         <span className="notice-icon" aria-hidden="true">i</span>
-        <p><strong>데모 버전</strong> 입력한 정보로 예시 문장을 조합합니다. AI 연결 및 외부 전송은 없으며, 검색 순위나 GEO 인용을 보장하지 않습니다.</p>
+        <p><strong>AI 글 생성</strong> 입력한 업체 정보가 OpenAI로 전송됩니다. 실제 검색·사실 검증 기능은 없으며, 게시 전 검토가 필요합니다. 검색 순위나 AI 인용을 보장하지 않습니다.</p>
       </div>
 
       <div className="workspace">
@@ -83,7 +182,12 @@ function App() {
             <span className="required-note"><i>*</i> 필수 입력</span>
           </div>
 
-          <form onSubmit={handleGenerate}>
+          <form onSubmit={handleGenerate} aria-busy={loading}>
+            {error && <p role="alert" className="error-message">{error}</p>}
+            <label className="field">
+              <span className="field-label">앱 이용 암호 <i>*</i></span>
+              <input type="password" value={accessCode} onChange={event => setAccessCode(event.target.value)} placeholder="서버에 설정한 이용 암호" required autoComplete="off" />
+            </label>
             <div className="field-grid">
               <label className="field">
                 <span className="field-label">업체명 <i>*</i></span>
@@ -125,8 +229,37 @@ function App() {
               </div>
             </fieldset>
 
-            <button className="generate-button" type="submit">
-              <span>블로그 글 생성하기</span>
+            <section className="photo-section" aria-labelledby="photos-heading">
+              <h3 id="photos-heading">사진 번호와 삽입 위치</h3>
+              <p>최대 10장 · JPG/PNG/WebP · 장당 10MB. 번호는 순서를 바꿔도 유지됩니다.</p>
+              <p>AI 사진 설명 추천을 누르면 해당 사진이 OpenAI API로 전송되며 사용료가 발생할 수 있습니다. 사용 전 사진 전송에 대한 고객 동의를 확인하세요. 설명은 직접 수정 가능합니다.</p>
+              <p>사진은 이 브라우저에서만 미리 봅니다. 이번 버전은 AI 사진 분석 없이 문단 사이에 삽입 위치를 제안합니다. 새로고침하면 사진과 입력 내용이 사라집니다.</p>
+              <label className="photo-upload">사진 선택
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} disabled={loading} />
+              </label>
+              <ol className="photo-list">
+                {photos.map((photo, index) => <li key={photo.id} className="photo-card">
+                  <img src={photo.url} alt={`사진 ${photoNumber(photo.id)} 미리보기`} />
+                  <div className="photo-details">
+                    <strong>사진 {photoNumber(photo.id)}</strong>
+                    <button type="button" disabled={loading || analyzingPhoto !== null || !accessCode} onClick={() => analyzePhoto(photo)}>{analyzingPhoto === photo.id ? "AI 사진 분석 중…" : "AI 사진 설명 추천 (유료 API)"}</button>
+                    <label>사진 설명
+                      <input value={photo.description} maxLength={120} placeholder="예: 차량 앞면" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
+                    </label>
+                    <small>{photoFilename(photo)}</small>
+                    <div className="photo-actions">
+                      <button type="button" disabled={loading || index === 0} onClick={() => movePhoto(index, -1)} aria-label={`사진 ${photoNumber(photo.id)} 앞으로`}>앞으로</button>
+                      <button type="button" disabled={loading || index === photos.length - 1} onClick={() => movePhoto(index, 1)} aria-label={`사진 ${photoNumber(photo.id)} 뒤로`}>뒤로</button>
+                      <a href={photo.url} download={photoFilename(photo)}>사진 저장</a>
+                      <button type="button" disabled={loading} onClick={() => removePhoto(photo)}>삭제</button>
+                    </div>
+                  </div>
+                </li>)}
+              </ol>
+            </section>
+
+            <button className="generate-button" type="submit" disabled={loading}>
+              <span>{loading ? 'AI가 글을 작성하고 있어요…' : 'AI로 블로그 글 생성하기'}</span>
               <span className="button-arrow" aria-hidden="true">↗</span>
             </button>
             <p className="form-footnote"><span aria-hidden="true">✳</span> 생성된 글은 초안입니다. 게시 전 내용을 꼭 확인해 주세요.</p>
@@ -149,11 +282,21 @@ function App() {
                 <h3>{result.title}</h3>
                 <div className="draft-divider" />
                 <p className="draft-label">본문</p>
-                <div className="draft-body">{result.body}</div>
+                <div className="draft-body">{blocks.map((block, index) => block.type === 'text'
+                  ? (headingText(block.text)
+                    ? <h4 key={index} className="draft-subheading">{headingText(block.text)}</h4>
+                    : <div key={index} className="draft-paragraph">{block.text}</div>)
+                  : <div key={index} className="photo-placeholder">
+                    <img src={block.photo.url} alt={block.photo.description || `사진 ${photoNumber(block.photo.id)}`} />
+                    <div><strong>[사진 {photoNumber(block.photo.id)} 넣는 곳 — {block.photo.description.trim() || '설명 없음'}]</strong>
+                    <p>{photoFilename(block.photo)}</p>
+                    <label><input type="checkbox" checked={!!placed[block.photo.id]} onChange={event => setPlaced(current => ({ ...current, [block.photo.id]: event.target.checked }))} /> 블로그에 사진 삽입 완료</label></div>
+                  </div>)}</div>
+                {photos.length > 0 && <p className="photo-review" role="note">사진 삽입 확인: {photos.filter(photo => placed[photo.id]).length}/{photos.length}장. 체크는 작업 메모이며 실제 업로드 여부는 확인하지 않습니다. 게시 전 [사진 넣는 곳] 안내와 파일명 문구를 지우세요. 사진 설명은 공개할 문구인지 확인하세요.</p>}
               </div>
               <button className="copy-button" type="button" onClick={handleCopy}>
                 <span className="copy-icon" aria-hidden="true">{copied ? '✓' : '▢'}</span>
-                <span>{copied ? '복사 완료' : '제목과 본문 복사'}</span>
+                <span>{copied ? '복사 완료' : '제목·본문·사진 위치 복사'}</span>
               </button>
             </>
           ) : (
@@ -166,7 +309,7 @@ function App() {
               <span className="empty-index">YOUR NEXT POST STARTS HERE</span>
             </div>
           )}
-          <div className="result-bottom-note"><span className="bottom-line" />{result ? '데모 문장 · 게시 전 검토 필요' : '입력 정보는 이 화면에서만 사용됩니다'}</div>
+          <div className="result-bottom-note"><span className="bottom-line" />{result ? 'AI 생성 초안 · 게시 전 검토 필요' : '생성 시 업체 정보가 OpenAI로 전송됩니다'}</div>
         </section>
       </div>
 
