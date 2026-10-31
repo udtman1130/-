@@ -41,13 +41,12 @@ function App() {
   const [accessCode, setAccessCode] = useState('')
 
   const [photos, setPhotos] = useState([])
-  const [analyzingPhoto, setAnalyzingPhoto] = useState(null)
   const [placed, setPlaced] = useState({})
   const nextPhotoId = useRef(1)
   const photoUrls = useRef(new Set())
   useEffect(() => () => photoUrls.current.forEach(url => URL.revokeObjectURL(url)), [])
 
-  const inputSnapshot = JSON.stringify({ form, answers, carExport })
+  const inputSnapshot = JSON.stringify({ form, answers, carExport, photoDescriptions: photos.map(photo => photo.description) })
   const activePreparation = preparation?.snapshot === inputSnapshot ? preparation : null
   function preparationResponses() {
     return activePreparation ? activePreparation.questions.map((item, i) => ({ question: item.question, answer: (preparationAnswers[i] || '').trim() })).filter(item => item.answer) : []
@@ -62,7 +61,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, carExport, action: 'prepare', interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, photoDescriptions: photos.map((photo, i) => ({ number: photoNumber(photo.id), description: photo.description.trim(), order: i + 1 })).filter(photo => photo.description), carExport, action: 'prepare', interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -114,34 +113,6 @@ function App() {
     setError('')
   }
 
-  async function analyzePhoto(photo) {
-    if (analyzingPhoto !== null) return
-    setAnalyzingPhoto(photo.id)
-    setError('')
-    try {
-      const image = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result)
-        reader.onerror = () => reject(new Error('사진을 읽을 수 없습니다.'))
-        reader.readAsDataURL(photo.file)
-      })
-      const response = await fetch('/api/analyze-photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessCode },
-        body: JSON.stringify({ image, context: [form.industry, form.offering].filter(Boolean).join(' / ') }),
-        signal: AbortSignal.timeout(70000),
-      })
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(payload?.error || '사진 분석에 실패했습니다.')
-      setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: payload.description } : item))
-      setCopied(false)
-    } catch (err) {
-      setError(err.message || '사진 분석에 실패했습니다.')
-    } finally {
-      setAnalyzingPhoto(null)
-    }
-  }
-
   function movePhoto(index, direction) {
     setPhotos(current => {
       const copy = [...current]
@@ -184,7 +155,7 @@ function App() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode}` },
-        body: JSON.stringify({ ...form, carExport, preparationAnswers: preparationResponses(), ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
+        body: JSON.stringify({ ...form, photoDescriptions: photos.map((photo, i) => ({ number: photoNumber(photo.id), description: photo.description.trim(), order: i + 1 })).filter(photo => photo.description), carExport, preparationAnswers: preparationResponses(), ...(revise ? { previousDraft: { title: result.title, body: result.body }, reviewAnswers: history } : {}), interview: Object.entries(answers).map(([id, answer]) => ({ id, ...answer })) }),
         signal: AbortSignal.timeout(70000),
       })
       const data = await response.json().catch(() => null)
@@ -318,7 +289,7 @@ function App() {
             <section className="photo-section" aria-labelledby="photos-heading">
               <h3 id="photos-heading">사진 번호와 삽입 위치</h3>
               <p>최대 10장 · JPG/PNG/WebP · 장당 10MB. 번호는 순서를 바꿔도 유지됩니다.</p>
-              <p>사진은 브라우저에서 미리 봅니다. AI 사진 설명 추천을 누르면 해당 사진이 OpenAI API로 전송되어 사용료가 발생할 수 있습니다. 고객 동의를 확인한 뒤 사용하세요. 새로고침하면 입력 내용이 사라집니다.</p>
+              <p>사진에 담긴 실제 상황·작업 내용·특징을 직접 설명해 주세요. AI가 작성 전 질문과 포스팅에 이 설명을 반영합니다. 사진 파일 자체는 AI에 전송하지 않습니다. 새로고침하면 입력 내용이 사라집니다.</p>
               <label className="photo-upload">사진 선택
                 <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} disabled={loading} />
               </label>
@@ -327,12 +298,11 @@ function App() {
                   <img src={photo.url} alt={`사진 ${photoNumber(photo.id)} 미리보기`} />
                   <div className="photo-details">
                     <strong>사진 {photoNumber(photo.id)}</strong>
-                    <button type="button" disabled={loading || analyzingPhoto !== null || !accessCode} onClick={() => analyzePhoto(photo)}>{analyzingPhoto === photo.id ? "AI 사진 분석 중…" : "AI 사진 설명 추천 (유료 API)"}</button>
-                    <label>사진 아래에 표시할 설명
-                      <input value={photo.description} maxLength={120} placeholder="외관·운전석·계기판 등 실제 사진 내용을 설명" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
+                    <label>실제 사진 상황 및 작업 설명
+                      <input value={photo.description} maxLength={600} placeholder="예: 2018년식 아반떼 앞범퍼에 스크래치가 있어 상담 시 해당 상태를 확인했습니다." disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
                     </label>
                     <small>{photoFilename(photo)}</small>
-                    {(!photo.description.trim() || /^\d+$/.test(photo.description.trim())) && <p className="interview-hint">숫자 대신 무엇을 보여주는 사진인지 적어주세요. 차량 외관·계기판 등 실제 보이는 내용을 적고 차량번호는 가려주세요. AI 추천 설명도 실제 내용과 일치하는지 확인하세요.</p>}
+                    {(!photo.description.trim() || /^\d+$/.test(photo.description.trim())) && <p className="interview-hint">숫자 대신 무엇을 보여주는 사진인지 적어주세요. 차량 외관·계기판 등 실제 보이는 내용을 적고 차량번호는 가려주세요. 이 설명이 포스팅의 근거가 되므로 실제 확인한 내용만 입력하세요.</p>}
                     <div className="photo-actions">
                       <button type="button" disabled={loading || index === 0} onClick={() => movePhoto(index, -1)} aria-label={`사진 ${photoNumber(photo.id)} 앞으로`}>앞으로</button>
                       <button type="button" disabled={loading || index === photos.length - 1} onClick={() => movePhoto(index, 1)} aria-label={`사진 ${photoNumber(photo.id)} 뒤로`}>뒤로</button>
