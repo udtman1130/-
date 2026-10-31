@@ -12,9 +12,9 @@ export default function Interview({ plan, answers, onChange, disabled }) {
     <p className="interview-hint">견적·비용·거래 순서·실제 경험·확인 시점을 모읍니다. 질문 작성만으로 AI 추천이나 인용이 보장되지는 않습니다.</p>
     <fieldset disabled={disabled}>
       <legend>질문 {step + 1} / {questions.length} — {question.title}</legend>
-      <div className="answer-options">{question.options.map(option => <button type="button" key={option} onClick={() => edit(option)}>{option}</button>)}</div>
+      <div className="answer-options">{question.options.map(option => <button type="button" key={option} aria-pressed={current.text === option} onClick={() => onChange({ ...answers, [question.id]: { text: option, confirmed: true } })}>{option}</button>)}</div>
       <textarea aria-label={question.title} value={current.text} maxLength={2000} rows={3} onChange={event => edit(event.target.value)} placeholder={question.hint} />
-      <p className="interview-hint">{question.hint}</p>
+      <p className="interview-hint">{question.hint} {question.options.length ? "선택지만 눌러도 사용할 수 있습니다. 실제 경험이 있다면 위에 한 줄 더 적고 답변 확인을 눌러주세요." : ""}</p>
       <label><input type="checkbox" checked={current.confirmed} disabled={!current.text.trim()} onChange={event => onChange({ ...answers, [question.id]: { ...current, confirmed: event.target.checked } })} /> 이 답변을 글에 사용할 정보로 확인했어요</label>
       <div className="answer-options">
         <button type="button" onClick={() => { edit(''); setStep(Math.min(step + 1, questions.length - 1)) }}>모름·해당 없음 / 건너뛰기</button>
