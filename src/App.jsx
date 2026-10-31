@@ -20,6 +20,7 @@ function App() {
   const [accessCode, setAccessCode] = useState('')
 
   const [photos, setPhotos] = useState([])
+  const [analyzingPhoto, setAnalyzingPhoto] = useState(null)
   const [placed, setPlaced] = useState({})
   const nextPhotoId = useRef(1)
   const photoUrls = useRef(new Set())
@@ -40,6 +41,35 @@ function App() {
     })
     setPhotos(current => [...current, ...additions])
     setError('')
+  }
+
+
+  async function analyzePhoto(photo) {
+    if (analyzingPhoto !== null) return
+    setAnalyzingPhoto(photo.id)
+    setError('')
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(new Error('사진을 읽을 수 없습니다.'))
+        reader.readAsDataURL(photo.file)
+      })
+      const response = await fetch('/api/analyze-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessCode },
+        body: JSON.stringify({ image, context: [form.industry, form.offering].filter(Boolean).join(' / ') }),
+        signal: AbortSignal.timeout(70000),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(payload?.error || '사진 분석에 실패했습니다.')
+      setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: payload.description } : item))
+      setCopied(false)
+    } catch (err) {
+      setError(err.message || '사진 분석에 실패했습니다.')
+    } finally {
+      setAnalyzingPhoto(null)
+    }
   }
 
   function movePhoto(index, direction) {
@@ -202,6 +232,7 @@ function App() {
             <section className="photo-section" aria-labelledby="photos-heading">
               <h3 id="photos-heading">사진 번호와 삽입 위치</h3>
               <p>최대 10장 · JPG/PNG/WebP · 장당 10MB. 번호는 순서를 바꿔도 유지됩니다.</p>
+              <p>AI 사진 설명 추천을 누르면 해당 사진이 OpenAI API로 전송되며 사용료가 발생할 수 있습니다. 사용 전 사진 전송에 대한 고객 동의를 확인하세요. 설명은 직접 수정 가능합니다.</p>
               <p>사진은 이 브라우저에서만 미리 봅니다. 이번 버전은 AI 사진 분석 없이 문단 사이에 삽입 위치를 제안합니다. 새로고침하면 사진과 입력 내용이 사라집니다.</p>
               <label className="photo-upload">사진 선택
                 <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} disabled={loading} />
@@ -211,6 +242,7 @@ function App() {
                   <img src={photo.url} alt={`사진 ${photoNumber(photo.id)} 미리보기`} />
                   <div className="photo-details">
                     <strong>사진 {photoNumber(photo.id)}</strong>
+                    <button type="button" disabled={loading || analyzingPhoto !== null || !accessCode} onClick={() => analyzePhoto(photo)}>{analyzingPhoto === photo.id ? "AI 사진 분석 중…" : "AI 사진 설명 추천 (유료 API)"}</button>
                     <label>사진 설명
                       <input value={photo.description} maxLength={120} placeholder="예: 차량 앞면" disabled={loading} onChange={event => { setPhotos(current => current.map(item => item.id === photo.id ? { ...item, description: event.target.value } : item)); setCopied(false) }} />
                     </label>
