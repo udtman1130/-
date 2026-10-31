@@ -60,7 +60,7 @@ export function createGenerateHandler({ env = process.env, fetchImpl = fetch } =
       }
       if (form.photoDescriptions != null) {
         if (!Array.isArray(form.photoDescriptions) || form.photoDescriptions.length > 10 ||
-          form.photoDescriptions.some(photo => typeof photo?.number !== 'string' || !/^\\d{2,3}$/.test(photo.number) || typeof photo?.description !== 'string' || photo.description.length > 600 ||
+          form.photoDescriptions.some(photo => typeof photo?.number !== 'string' || !/^\d{2,3}$/.test(photo.number) || typeof photo?.description !== 'string' || photo.description.length > 600 ||
             !Number.isInteger(photo.order) || photo.order < 1 || photo.order > 10)) return send(400, { error: '사진 설명은 최대 10개, 각 600자 이내로 입력해 주세요.' })
         const used = new Set()
         for (const photo of form.photoDescriptions) {
