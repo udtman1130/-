@@ -15,10 +15,10 @@ test('each car export topic has relevant questions without inventing operating f
     assert.equal(questions.some(q => q.id === 'case'), purpose.id === 'case')
   }
   const payment = questionsForExport({ purpose: 'faq', topicId: 'payment' })
-  assert.ok(payment.find(q => q.id === 'answer').title.includes('대금'))
+  assert.ok(payment.find(q => q.id === 'answer').hint.includes('입금'))
   assert.ok(!payment.some(q => /객실|메뉴|수강/.test(q.title)))
   const quote = questionsForExport({ purpose: 'faq', topicId: 'quote' })
-  assert.ok(quote.find(q => q.id === 'conditions').title.includes('동의'))
+  assert.ok(quote.find(q => q.id === 'conditions').options.includes('외관 손상'))
 })
 test('case data stays literal and does not leak into other article types', () => {
   const plan = normalizeCarExport({ purpose: 'case', topicId: 'mileage', vehicle: { model: '스타렉스', mileage: '25만km', outcome: '견적 안내 중' } })
@@ -46,3 +46,4 @@ test('invalid article plans and oversized vehicle values are rejected', () => {
   assert.throws(() => normalizeCarExport({ purpose: 'case', topicId: 'quote', vehicle: { mileage: 250000 } }))
   assert.throws(() => normalizeCarExport({ purpose: 'case', topicId: 'quote', vehicle: { model: 'a'.repeat(101) } }))
 })
+
