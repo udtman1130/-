@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import Interview from './Interview.jsx'
+import QualityCheck from './QualityCheck.jsx'
 import { articlePurposes, exportTopics, vehicleFields, initialCarExport, carEvidenceLabel, effectiveTopicId } from '../shared/car-export.js'
 import { exportDraft, cleanText } from './export.js'
 import { photoNumber, photoFilename, buildPhotoDraft } from './photos'
@@ -370,6 +371,7 @@ function App() {
                   </div>)}</div>
                 {photos.length > 0 && <p className="photo-review" role="note">사진 삽입 확인: {photos.filter(photo => placed[photo.id]).length}/{photos.length}장. 체크는 작업 메모이며 실제 업로드 여부는 확인하지 않습니다. 게시 전 [사진 넣는 곳] 안내와 파일명 문구를 지우세요. 사진 설명은 공개할 문구인지 확인하세요.</p>}
               </div>
+              <QualityCheck result={result} form={form} carExport={carExport} photos={photos} />
               <section className="review-panel">
                 <h3>게시 전 내용 확인</h3>
                 <p>입력한 정보는 외부 근거가 없어도 글에 반영합니다. AI의 추측과 누락을 점검하는 안내이며, 인터넷 조사나 독립적인 사실 검증 결과는 아닙니다.</p>
